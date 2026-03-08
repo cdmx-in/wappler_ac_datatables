@@ -1,0 +1,22 @@
+{
+    "name": "@cdmx/wappler_ac_datatables",
+    "version": "0.0.1",
+    "type": "module",
+    "description": "App Connect module for DataTables - Feature-rich data grid with filtering, sorting, server-side pagination, multi-select filters, export, and action buttons.",
+    "license": "MIT",
+    "author": {
+        "name": "cdmx-in",
+        "url": "https://github.com/cdmx-in"
+    },
+    "keywords": [
+        "wappler-extension",
+        "app-connect",
+        "datatables"
+    ],
+    "dependencies": {
+        "datatables.net": "~2.2.2",
+        "datatables.net-buttons": "~3.2.3",
+        "papaparse": "~5.5.2",
+        "pdfmake": "~0.2.18"
+    }
+}

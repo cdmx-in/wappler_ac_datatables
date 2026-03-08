@@ -1,0 +1,429 @@
+{
+  components: [
+    {
+      type: "dmx-datatables",
+      selector: "dmx-datatables, [is=dmx-datatables]",
+      groupTitle: "Components",
+      groupIcon: "fa fa-lg fa-cube",
+      title: "DataTables: @@id@@",
+      icon: "fas fa-lg fa-table",
+      state: "opened",
+      anyParent: true,
+      template: "<dmx-datatables id=\"@@id@@\"></dmx-datatables>",
+      baseName: "datatables",
+      help: "DataTables component — filtering, sorting, server-side pagination, multi-select filters, CSV/PDF export, action buttons.",
+
+      dataScheme: [
+        { name: "id",           title: "Row Id",        type: "number" },
+        { name: "data",         title: "Row Data",      type: "object" },
+        { name: "count",        title: "Total Count",   type: "number" },
+        { name: "fields",       title: "Cell Fields",   type: "object" },
+        { name: "fileData",     title: "File Data",     type: "array"  },
+        { name: "selectedRows", title: "Selected Rows", type: "array"  },
+        { name: "filterState",  title: "Filter State",  type: "object" },
+        {
+          name: "serverState", title: "Server State", type: "object",
+          sub: [
+            { name: "page",          type: "number" },
+            { name: "pageSize",      type: "number" },
+            { name: "totalRecords",  type: "number" },
+            { name: "totalPages",    type: "number" },
+            { name: "search",        type: "text"   },
+            { name: "orderField",    type: "text"   },
+            { name: "orderDir",      type: "text"   },
+            { name: "columnFilters", type: "object" }
+          ]
+        },
+        {
+          name: "state", title: "State", type: "object",
+          sub: [
+            { name: "tableReady",        type: "boolean" },
+            { name: "firstDataRendered", type: "boolean" },
+            { name: "rowDataUpdated",    type: "boolean" },
+            { name: "loading",           type: "boolean" }
+          ]
+        }
+      ],
+
+      outputType: "object",
+      dataPick: true,
+
+      properties: [
+        {
+          group: "DataTables - Core",
+          variables: [
+            { name: "id",        attribute: "id",              title: "ID",            type: "text",    required: true, help: "Unique ID for this table" },
+            { name: "rowData",   attribute: "dmx-bind:data",   title: "Data Source",   type: "text",    dataBindings: true, defaultValue: [], help: "Bind your data array here" },
+            { name: "noload",    hasAttribute: "noload",        title: "No Auto Load",  type: "boolean", defaultValue: "", initValue: true },
+            { name: "tableClass",attribute: "table_class",     title: "Table CSS Class", type: "text",  defaultValue: "table table-striped table-hover table-bordered" },
+            { name: "darkMode",  attribute: "dmx-bind:dark_mode", title: "Dark Mode",  type: "boolean", defaultValue: false }
+          ]
+        },
+        {
+          group: "DataTables - Columns",
+          variables: [
+            { name: "cnames",      attribute: "dmx-bind:cnames",  title: "Column Names",   type: "text", dataBindings: true, help: "Object: {field: {custom_name: 'Label'}}" },
+            { name: "cwidths",     attribute: "dmx-bind:cwidths", title: "Column Widths",  type: "text", dataBindings: true, help: "Object: {field: {min_width: 100, max_width: 200}}" },
+            { name: "ctypes",      attribute: "dmx-bind:ctypes",  title: "Column Types",   type: "text", dataBindings: true, help: "Array: [{field, type}] — type: text/number/date" },
+            { name: "hideFields",  attribute: "hide_fields",      title: "Hide Fields",    type: "text", help: "Comma-separated field names to hide" },
+            { name: "hideIdField", attribute: "hide_id_field",    title: "Hide ID Field",  type: "boolean", defaultValue: false },
+            { name: "wrapText",    attribute: "wrap_text",        title: "Wrap Cell Text", type: "boolean", defaultValue: false }
+          ]
+        },
+        {
+          group: "DataTables - Value Mapping",
+          variables: [
+            { name: "dataChanges",        attribute: "dmx-bind:data_changes",        title: "Data Changes",         type: "text", dataBindings: true, help: "Array: [{field, value, new_value, area}]" },
+            { name: "displayDataChanges", attribute: "dmx-bind:display_data_changes", title: "Display Data Changes", type: "text", dataBindings: true, help: "Array: [{field, data}] — use %field% placeholders" },
+            { name: "jsDataChanges",      attribute: "dmx-bind:js_data_changes",     title: "JS Data Changes",      type: "text", dataBindings: true, help: "Array: [{field, function}] — window function returning HTML" }
+          ]
+        },
+        {
+          group: "DataTables - Formatting",
+          variables: [
+            { name: "dateFormat",          attribute: "date_format",          title: "Date Format",       type: "text",   defaultValue: "dd/MM/yyyy hh:mm A" },
+            { name: "dateLocale",          attribute: "date_locale",          title: "Date Locale",       type: "text",   defaultValue: "en-US" },
+            { name: "timezone",            attribute: "timezone",             title: "Timezone",          type: "text",   defaultValue: "" },
+            { name: "amountFields",        attribute: "amount_fields",        title: "Amount Fields",     type: "text",   help: "Comma-separated fields to format as locale numbers" },
+            { name: "amountFieldPrecision",attribute: "amount_field_precision",title: "Amount Precision", type: "number", defaultValue: 2 }
+          ]
+        },
+        {
+          group: "DataTables - Styling",
+          variables: [
+            { name: "cstyles", attribute: "dmx-bind:cstyles", title: "Cell Styles", type: "text", dataBindings: true, help: "Array: [{field, condition, customColor, font, area}] — area: 'text' or 'cell'" },
+            { name: "rstyles", attribute: "dmx-bind:rstyles", title: "Row Styles",  type: "text", dataBindings: true, help: "Array: [{condition, customColor}] — condition: window function name returning boolean" }
+          ]
+        },
+        {
+          group: "DataTables - Sorting",
+          variables: [
+            { name: "sortable", attribute: "sortable",         title: "Enable Sorting",        type: "boolean", defaultValue: true },
+            { name: "ciSort",   attribute: "ci_sort",          title: "Case-Insensitive Sort",  type: "boolean", defaultValue: false },
+            { name: "csort",    attribute: "dmx-bind:csort",   title: "Default Sort",          type: "text",    dataBindings: true, help: "Array: [{field, sort}] — sort: 'asc' or 'desc'" }
+          ]
+        },
+        {
+          group: "DataTables - Filtering",
+          variables: [
+            { name: "filter",            attribute: "filter",            title: "Global Search Bar",      type: "boolean", defaultValue: true },
+            { name: "floatingFilter",    attribute: "floating_filter",   title: "Column Text Filters",    type: "boolean", defaultValue: false, help: "Text input below each column header" },
+            { name: "multiselectFilter", attribute: "multiselect_filter",title: "Multi-Select Filters",   type: "boolean", defaultValue: false, help: "Checkbox dropdown below each column header" },
+            { name: "cfilters",          attribute: "dmx-bind:cfilters", title: "Initial Column Filters", type: "text",    dataBindings: true, help: "Array: [{field, filter}]" },
+            { name: "quickFilterField",  attribute: "quick_filter_field",title: "Quick Filter Input ID",  type: "text",    defaultValue: "search_field" }
+          ]
+        },
+        {
+          group: "DataTables - Pagination",
+          variables: [
+            { name: "pagination",             attribute: "pagination",              title: "Enable Pagination",  type: "boolean", defaultValue: true },
+            { name: "paginationPageSize",     attribute: "pagination_page_size",    title: "Page Size",          type: "number",  defaultValue: 20 },
+            { name: "paginationPageSizeSelector", attribute: "dmx-bind:pagination_page_size_selector", title: "Page Size Options", type: "text", defaultValue: "[10,20,50,100]" }
+          ]
+        },
+        {
+          group: "DataTables - Server-Side Pagination",
+          variables: [
+            { name: "serverSide",   attribute: "server_side",          title: "Server-Side Mode",    type: "boolean", defaultValue: false, help: "Fires server_request event on page/sort/filter changes. Bind serverState.* to your API." },
+            { name: "totalRecords", attribute: "dmx-bind:total_records", title: "Total Record Count", type: "text",    dataBindings: true, help: "Total records returned by server (required for server-side pagination)" }
+          ]
+        },
+        {
+          group: "DataTables - Layout",
+          variables: [
+            { name: "scrollX", attribute: "scroll_x", title: "Horizontal Scroll", type: "boolean", defaultValue: false },
+            { name: "scrollY", attribute: "scroll_y", title: "Scroll Height",      type: "text",    help: "e.g. 400px — fixed-height scrollable body" }
+          ]
+        },
+        {
+          group: "DataTables - Row Events",
+          variables: [
+            { name: "rowClickEvent",         attribute: "row_click_event",         title: "Row Click Event",          type: "boolean", defaultValue: false },
+            { name: "rowDoubleClickEvent",   attribute: "row_double_click_event",  title: "Row Double-Click Event",   type: "boolean", defaultValue: false },
+            { name: "cellClickEvent",        attribute: "cell_click_event",        title: "Cell Click Event",         type: "boolean", defaultValue: false },
+            { name: "rowCheckboxEvent",      attribute: "row_checkbox_event",      title: "Row Checkbox Event",       type: "boolean", defaultValue: false },
+            { name: "rowStatusEvent",        attribute: "row_status_event",        title: "Status Toggle Event",      type: "boolean", defaultValue: false },
+            { name: "suppressRowClickSelect",attribute: "suppress_row_click_selection", title: "Suppress Pointer Cursor", type: "boolean", defaultValue: false }
+          ]
+        },
+        {
+          group: "DataTables - Export",
+          variables: [
+            { name: "exportToCsv",           attribute: "export_to_csv",            title: "CSV Export Button",         type: "boolean", defaultValue: true },
+            { name: "exportCsvFilename",     attribute: "export_csv_filename",      title: "CSV Filename",              type: "text",    defaultValue: "export.csv" },
+            { name: "exportToPdf",           attribute: "export_to_pdf",            title: "PDF Export Button",         type: "boolean", defaultValue: false },
+            { name: "exportPdfFilename",     attribute: "export_pdf_filename",      title: "PDF Filename",              type: "text",    defaultValue: "export.pdf" },
+            { name: "exportRemoveHtml",      attribute: "export_remove_html",       title: "Strip HTML on Export",      type: "boolean", defaultValue: false },
+            { name: "exportTrimData",        attribute: "export_trim_data",         title: "Trim Values on Export",     type: "boolean", defaultValue: false },
+            { name: "exportExcludeFields",   attribute: "export_exclude_fields",    title: "Exclude Fields from Export",type: "text",    help: "Comma-separated field names" },
+            { name: "exportExcludeHidden",   attribute: "export_exclude_hidden_fields", title: "Exclude Hidden Fields", type: "boolean", defaultValue: false }
+          ]
+        },
+        {
+          group: "DataTables - Action Buttons",
+          variables: [
+            { name: "enableActions",        attribute: "enable_actions",          title: "Enable Actions Column",   type: "boolean", defaultValue: false },
+            { name: "actionsPosition",      attribute: "actions_column_position", title: "Actions Position (left/right)", type: "text", defaultValue: "right" },
+            { name: "editActionBtn",        attribute: "edit_action_btn",         title: "Edit Button",             type: "boolean", defaultValue: false },
+            { name: "editActionTitle",      attribute: "edit_action_title",       title: "Edit Label",              type: "text",    defaultValue: "" },
+            { name: "editActionTooltip",    attribute: "edit_action_tooltip",     title: "Edit Tooltip",            type: "text",    defaultValue: "Edit" },
+            { name: "editActionIcon",       attribute: "edit_action_icon_class",  title: "Edit Icon Class",         type: "text",    defaultValue: "fas fa-pencil-alt" },
+            { name: "editActionClass",      attribute: "edit_action_btn_class",   title: "Edit Button Class",       type: "text",    defaultValue: "btn-primary btn-xs m-1" },
+            { name: "editActionCondition",  attribute: "edit_action_btn_condition","title": "Edit Condition",       type: "text" },
+            { name: "viewActionBtn",        attribute: "view_action_btn",         title: "View Button",             type: "boolean", defaultValue: false },
+            { name: "viewActionTitle",      attribute: "view_action_title",       title: "View Label",              type: "text",    defaultValue: "" },
+            { name: "viewActionTooltip",    attribute: "view_action_tooltip",     title: "View Tooltip",            type: "text",    defaultValue: "View" },
+            { name: "viewActionIcon",       attribute: "view_action_icon_class",  title: "View Icon Class",         type: "text",    defaultValue: "fas fa-eye" },
+            { name: "viewActionClass",      attribute: "view_action_btn_class",   title: "View Button Class",       type: "text",    defaultValue: "btn-info btn-xs m-1" },
+            { name: "viewActionCondition",  attribute: "view_action_btn_condition","title": "View Condition",       type: "text" },
+            { name: "deleteActionBtn",      attribute: "delete_action_btn",       title: "Delete Button",           type: "boolean", defaultValue: false },
+            { name: "deleteActionTitle",    attribute: "delete_action_title",     title: "Delete Label",            type: "text",    defaultValue: "" },
+            { name: "deleteActionTooltip",  attribute: "delete_action_tooltip",   title: "Delete Tooltip",          type: "text",    defaultValue: "Delete" },
+            { name: "deleteActionIcon",     attribute: "delete_action_icon_class",title: "Delete Icon Class",       type: "text",    defaultValue: "fas fa-trash" },
+            { name: "deleteActionClass",    attribute: "delete_action_btn_class", title: "Delete Button Class",     type: "text",    defaultValue: "btn-danger btn-xs m-1" },
+            { name: "deleteActionCondition",attribute: "delete_action_btn_condition","title": "Delete Condition",   type: "text" }
+          ]
+        },
+        {
+          group: "DataTables - Custom Buttons (1-10)",
+          variables: [
+            { name: "enableCustomBtns", attribute: "enable_custom_action_btns", title: "Enable Custom Buttons", type: "boolean", defaultValue: false },
+            { name: "btn1",       attribute: "button1_action_btn",       title: "Button 1",         type: "boolean", defaultValue: false },
+            { name: "btn1Title",  attribute: "button1_action_title",     title: "Button 1 Label",   type: "text" },
+            { name: "btn1Tip",    attribute: "button1_action_tooltip",   title: "Button 1 Tooltip", type: "text" },
+            { name: "btn1Icon",   attribute: "button1_action_icon_class",title: "Button 1 Icon",    type: "text", defaultValue: "fas fa-wrench" },
+            { name: "btn1Class",  attribute: "button1_action_btn_class", title: "Button 1 Class",   type: "text", defaultValue: "btn-primary btn-xs m-1" },
+            { name: "btn1Cond",   attribute: "button1_action_btn_condition","title":"Button 1 Condition",type: "text" },
+            { name: "btn2",       attribute: "button2_action_btn",       title: "Button 2",         type: "boolean", defaultValue: false },
+            { name: "btn2Title",  attribute: "button2_action_title",     title: "Button 2 Label",   type: "text" },
+            { name: "btn2Tip",    attribute: "button2_action_tooltip",   title: "Button 2 Tooltip", type: "text" },
+            { name: "btn2Icon",   attribute: "button2_action_icon_class",title: "Button 2 Icon",    type: "text", defaultValue: "fas fa-search-plus" },
+            { name: "btn2Class",  attribute: "button2_action_btn_class", title: "Button 2 Class",   type: "text", defaultValue: "btn-info btn-xs m-1" },
+            { name: "btn2Cond",   attribute: "button2_action_btn_condition","title":"Button 2 Condition",type: "text" },
+            { name: "btn3",       attribute: "button3_action_btn",       title: "Button 3",         type: "boolean", defaultValue: false },
+            { name: "btn3Title",  attribute: "button3_action_title",     title: "Button 3 Label",   type: "text" },
+            { name: "btn4",       attribute: "button4_action_btn",       title: "Button 4",         type: "boolean", defaultValue: false },
+            { name: "btn4Title",  attribute: "button4_action_title",     title: "Button 4 Label",   type: "text" },
+            { name: "btn5",       attribute: "button5_action_btn",       title: "Button 5",         type: "boolean", defaultValue: false },
+            { name: "btn5Title",  attribute: "button5_action_title",     title: "Button 5 Label",   type: "text" },
+            { name: "btn6",       attribute: "button6_action_btn",       title: "Button 6",         type: "boolean", defaultValue: false },
+            { name: "btn6Title",  attribute: "button6_action_title",     title: "Button 6 Label",   type: "text" },
+            { name: "btn7",       attribute: "button7_action_btn",       title: "Button 7",         type: "boolean", defaultValue: false },
+            { name: "btn7Title",  attribute: "button7_action_title",     title: "Button 7 Label",   type: "text" },
+            { name: "btn8",       attribute: "button8_action_btn",       title: "Button 8",         type: "boolean", defaultValue: false },
+            { name: "btn8Title",  attribute: "button8_action_title",     title: "Button 8 Label",   type: "text" },
+            { name: "btn9",       attribute: "button9_action_btn",       title: "Button 9",         type: "boolean", defaultValue: false },
+            { name: "btn9Title",  attribute: "button9_action_title",     title: "Button 9 Label",   type: "text" },
+            { name: "btn10",      attribute: "button10_action_btn",      title: "Button 10",        type: "boolean", defaultValue: false },
+            { name: "btn10Title", attribute: "button10_action_title",    title: "Button 10 Label",  type: "text" }
+          ]
+        },
+        {
+          group: "DataTables - Footer Aggregation",
+          variables: [
+            { name: "columnsToSum",   attribute: "columns_to_sum",              title: "Sum Columns",    type: "text",   help: "Comma-separated field names to sum in footer row" },
+            { name: "footerPrec",     attribute: "footer_sum_precision",        title: "Sum Precision",  type: "number" },
+            { name: "columnsToCount", attribute: "dmx-bind:columns_to_count",   title: "Count Columns",  type: "text",   dataBindings: true, help: "Array: [{field, unique_values}]" }
+          ]
+        }
+      ],
+
+      actionsScheme: [
+        {
+          addTitle: "Load",
+          title: "Load Table",
+          name: "loadTable",
+          icon: "fa fa-lg fa-play",
+          state: "opened",
+          help: "Load or re-initialise the DataTable.",
+          properties: []
+        },
+        {
+          addTitle: "Destroy",
+          title: "Destroy Table",
+          name: "destroyTable",
+          icon: "fa fa-lg fa-trash",
+          state: "opened",
+          help: "Destroy the DataTable instance.",
+          properties: []
+        },
+        {
+          addTitle: "Reload",
+          title: "Reload Table",
+          name: "reloadTable",
+          icon: "fa fa-lg fa-sync",
+          state: "opened",
+          help: "Rebuild and reload the DataTable.",
+          properties: []
+        },
+        {
+          addTitle: "Export",
+          title: "Export Table",
+          name: "exportTable",
+          icon: "fa fa-lg fa-download",
+          state: "opened",
+          help: "Export table data to CSV or PDF.",
+          properties: [
+            {
+              group: "Properties",
+              variables: [
+                { name: "1", optionName: "1", title: "CSV", type: "boolean", dataBindings: true, defaultValue: true,  help: "Export as CSV file." },
+                { name: "2", optionName: "2", title: "PDF", type: "boolean", dataBindings: true, defaultValue: false, help: "Export as PDF file." }
+              ]
+            }
+          ]
+        },
+        {
+          addTitle: "QuickFilter",
+          title: "Quick Filter",
+          name: "quickFilter",
+          icon: "fas fa-lg fa-search",
+          state: "opened",
+          help: "Apply global search using the configured quick_filter_field input.",
+          properties: []
+        },
+        {
+          addTitle: "ApplyFilters",
+          title: "Apply Search Filter",
+          name: "applyFilters",
+          icon: "fa fa-lg fa-check-circle",
+          state: "opened",
+          help: "Programmatically set the global search text.",
+          properties: [
+            {
+              group: "Properties",
+              variables: [
+                { name: "1", optionName: "1", title: "Search Text", type: "text", dataBindings: true, defaultValue: "", required: true, help: "Text to search for." }
+              ]
+            }
+          ]
+        },
+        {
+          addTitle: "ClearFilters",
+          title: "Clear All Filters",
+          name: "clearFilters",
+          icon: "fa fa-lg fa-times-circle",
+          state: "opened",
+          help: "Clear global search, column filters, and multi-select filters.",
+          properties: []
+        },
+        {
+          addTitle: "HideColumn",
+          title: "Hide Column",
+          name: "hideColumns",
+          icon: "fa fa-lg fa-eye-slash",
+          state: "opened",
+          help: "Hide a column by field name.",
+          properties: [
+            {
+              group: "Properties",
+              variables: [
+                { name: "1", optionName: "1", title: "Field Name", type: "text", dataBindings: true, defaultValue: "", required: true }
+              ]
+            }
+          ]
+        },
+        {
+          addTitle: "ShowColumn",
+          title: "Show Column",
+          name: "showColumns",
+          icon: "fa fa-lg fa-eye",
+          state: "opened",
+          help: "Show a previously hidden column by field name.",
+          properties: [
+            {
+              group: "Properties",
+              variables: [
+                { name: "1", optionName: "1", title: "Field Name", type: "text", dataBindings: true, defaultValue: "", required: true }
+              ]
+            }
+          ]
+        },
+        {
+          addTitle: "GoToPage",
+          title: "Go To Page",
+          name: "goToPage",
+          icon: "fa fa-lg fa-forward",
+          state: "opened",
+          help: "Navigate to a specific page (1-based). Works in both client-side and server-side mode.",
+          properties: [
+            {
+              group: "Properties",
+              variables: [
+                { name: "1", optionName: "1", title: "Page Number", type: "number", dataBindings: true, defaultValue: 1, required: true }
+              ]
+            }
+          ]
+        },
+        {
+          addTitle: "SetPageSize",
+          title: "Set Page Size",
+          name: "setPageSize",
+          icon: "fa fa-lg fa-list-ol",
+          state: "opened",
+          help: "Change the number of rows per page.",
+          properties: [
+            {
+              group: "Properties",
+              variables: [
+                { name: "1", optionName: "1", title: "Page Size", type: "number", dataBindings: true, defaultValue: 20, required: true }
+              ]
+            }
+          ]
+        },
+        {
+          addTitle: "GetSelectedRows",
+          title: "Get Selected Rows",
+          name: "getSelectedRows",
+          icon: "fas fa-lg fa-check-square",
+          state: "opened",
+          help: "Populate selectedRows with currently selected rows.",
+          properties: []
+        },
+        {
+          addTitle: "ImportFile",
+          title: "Import File Data",
+          name: "importFileData",
+          icon: "fa fa-lg fa-file-import",
+          state: "opened",
+          help: "Parse a CSV file from a file input and store rows in fileData.",
+          properties: [
+            {
+              group: "Properties",
+              variables: [
+                { name: "1", optionName: "1", title: "File Input ID", type: "text", dataBindings: true, defaultValue: "\"csvfile\"", required: true, help: "ID attribute of the <input type='file'> element." }
+              ]
+            }
+          ]
+        }
+      ],
+
+      children: [],
+      allowed_children: {},
+
+      copyFiles: [
+        { src: "../../../node_modules/datatables.net/js/dataTables.min.js", dst: "js/dataTables.min.js" },
+        { src: "dmx-datatables.js",                                          dst: "js/dmx-datatables.js" },
+        { src: "../../../node_modules/papaparse/papaparse.min.js",           dst: "js/papaparse.min.js"  },
+        { src: "../../../node_modules/pdfmake/build/pdfmake.min.js",         dst: "js/pdfmake.min.js"   },
+        { src: "../../../node_modules/pdfmake/build/vfs_fonts.js",           dst: "js/vfs_fonts.js"     },
+        { src: "dmx-datatables.css",                                         dst: "css/dmx-datatables.css" }
+      ],
+
+      linkFiles: [
+        { src: "js/dataTables.min.js",  type: "js",  defer: true },
+        { src: "js/papaparse.min.js",   type: "js",  defer: true },
+        { src: "js/pdfmake.min.js",     type: "js",  defer: true },
+        { src: "js/vfs_fonts.js",       type: "js",  defer: true },
+        { src: "js/dmx-datatables.js",  type: "js",  defer: true },
+        { src: "css/dmx-datatables.css",type: "css" }
+      ],
+
+      cssOrder: [],
+      jsOrder: []
+    }
+  ],
+
+  attributes: [],
+  events: []
+}
