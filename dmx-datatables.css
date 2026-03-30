@@ -1,104 +1,20 @@
-/*
- * dmx-datatables.css
- * Minimal styles for the dmx-datatables Wappler component.
- * Works alongside Bootstrap (v4 or v5) classes applied to the <table>.
- */
+/* Minimal styles for the rebuilt Wappler DataTable component */
 
-/* ── Multi-select filter dropdown ────────────────────────────────────── */
-.dmx-ms-btn {
-  width: 100%;
-  text-align: left;
-  padding: 2px 6px;
-  border: 1px solid #ced4da;
-  border-radius: 4px;
-  background: #fff;
-  cursor: pointer;
-  font-size: 12px;
+.dmx-dt-action-wrap {
   display: flex;
-  justify-content: space-between;
-  align-items: center;
-  white-space: nowrap;
+  flex-wrap: wrap;
+  gap: 4px;
 }
 
-.dmx-ms-dropdown {
-  display: none;
-  position: absolute;
-  top: 100%;
-  left: 0;
-  min-width: 160px;
-  z-index: 9999;
-  background: #fff;
-  border: 1px solid #ced4da;
-  border-radius: 4px;
-  max-height: 200px;
-  overflow-y: auto;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-}
-
-.dmx-ms-dropdown label {
-  display: flex;
+.dmx-dt-action-btn {
+  display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 4px 10px;
-  cursor: pointer;
-  font-size: 12px;
-  white-space: nowrap;
-  margin: 0;
 }
 
-.dmx-ms-dropdown label:hover {
-  background: #f8f9fa;
-}
-
-/* ── Column text filter input ─────────────────────────────────────────── */
-.dmx-col-search {
-  width: 100%;
-  padding: 2px 6px;
-  border: 1px solid #ced4da;
-  border-radius: 4px;
-  font-size: 12px;
-}
-
-/* ── Filter row cell padding ──────────────────────────────────────────── */
-tr.dmx-filter-row th {
-  padding: 3px 4px;
-  position: relative;
-}
-
-/* ── Actions column: prevent shrinking ───────────────────────────────── */
 td.dt-nowrap,
 th.dt-nowrap {
   white-space: nowrap;
-}
-
-/* ── Dark mode — override DataTables default colours ─────────────────── */
-table.table-dark thead,
-table.table-dark tfoot {
-  --bs-table-bg: #343a40;
-}
-
-table.table-dark .dmx-ms-btn {
-  background: #495057;
-  border-color: #6c757d;
-  color: #f8f9fa;
-}
-
-table.table-dark .dmx-ms-dropdown {
-  background: #495057;
-  border-color: #6c757d;
-}
-
-table.table-dark .dmx-ms-dropdown label {
-  color: #f8f9fa;
-}
-
-table.table-dark .dmx-ms-dropdown label:hover {
-  background: #343a40;
-}
-
-/* ── Responsive pagination panel (mirrors AG Grid's responsive fix) ───── */
-.dataTables_wrapper .dataTables_paginate {
-  flex-wrap: wrap;
 }
 
 @media (max-width: 768px) {
@@ -108,6 +24,5 @@ table.table-dark .dmx-ms-dropdown label:hover {
   .dataTables_wrapper .dataTables_paginate {
     width: 100%;
     text-align: center;
-    margin-bottom: 6px;
   }
 }

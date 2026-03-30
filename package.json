@@ -14,9 +14,6 @@
         "datatables"
     ],
     "dependencies": {
-        "datatables.net": "~2.2.2",
-        "datatables.net-buttons": "~3.2.3",
-        "papaparse": "~5.5.2",
-        "pdfmake": "~0.2.18"
+
     }
 }
