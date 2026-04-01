@@ -17,6 +17,51 @@ th.dt-nowrap {
   white-space: nowrap;
 }
 
+.dmx-dt-col-search {
+  width: 100%;
+  box-sizing: border-box;
+  font-size: 0.85em;
+  padding: 4px 8px;
+}
+
+tfoot th,
+.dmx-dt-col-search-row th {
+  padding: 4px 8px;
+}
+
+.dmx-dt-col-search-row {
+  background: inherit;
+}
+
+/* Date range search */
+.dmx-dt-col-search-date {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.dmx-dt-col-search-date input[type="date"] {
+  font-size: 0.8em;
+  padding: 2px 4px;
+}
+
+/* Number search */
+.dmx-dt-col-search-number {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.dmx-dt-col-search-number select.dmx-dt-num-op {
+  font-size: 0.8em;
+  padding: 2px 4px;
+}
+
+.dmx-dt-col-search-number input[type="number"] {
+  font-size: 0.8em;
+  padding: 2px 4px;
+}
+
 @media (max-width: 768px) {
   .dataTables_wrapper .dataTables_length,
   .dataTables_wrapper .dataTables_filter,

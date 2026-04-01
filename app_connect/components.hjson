@@ -16,6 +16,9 @@
       "dataScheme": [
         { "name": "id", "type": "text" },
         { "name": "data", "type": "object" },
+        { "name": "row", "type": "object" },
+        { "name": "action_name", "type": "text" },
+        { "name": "action_number", "type": "number" },
         { "name": "count", "type": "number" },
         { "name": "serverState", "type": "object", "sub": [
           { "name": "offset", "type": "number" },
@@ -27,6 +30,14 @@
           { "name": "orderField", "type": "text" },
           { "name": "orderDir", "type": "text" }
         ]},
+        { "name": "params", "type": "object", "sub": [
+          { "name": "offset", "type": "number" },
+          { "name": "limit", "type": "number" },
+          { "name": "sort", "type": "text" },
+          { "name": "dir", "type": "text" },
+          { "name": "search", "type": "text" },
+          { "name": "columnSearch", "type": "text" }
+        ]},
         { "name": "state", "type": "object", "sub": [
           { "name": "tableReady", "type": "boolean" },
           { "name": "loading", "type": "boolean" }
@@ -37,14 +48,6 @@
         { "addTitle": "Reload Table", "title": "Reload Table", "name": "reloadTable", "icon": "fa fa-lg fa-sync", "state": "opened", "help": "Reload the DataTable" },
         { "addTitle": "Destroy Table", "title": "Destroy Table", "name": "destroyTable", "icon": "fa fa-lg fa-times", "state": "opened", "help": "Destroy the DataTable" }
       ],
-      "eventsScheme": [
-        { "name": "server_request", "title": "Server Request", "icon": "fa fa-lg fa-server" },
-        { "name": "row_clicked", "title": "Row Clicked", "icon": "fa fa-lg fa-hand-pointer" },
-        { "name": "row_action_edit", "title": "Row Action: Edit", "icon": "fa fa-lg fa-pencil-alt" },
-        { "name": "row_action_view", "title": "Row Action: View", "icon": "fa fa-lg fa-eye" },
-        { "name": "row_action_delete", "title": "Row Action: Delete", "icon": "fa fa-lg fa-trash" },
-        { "name": "row_action_custom", "title": "Row Action: Custom", "icon": "fa fa-lg fa-bolt" }
-      ],
       "properties": [
         {
           "group": "General",
@@ -54,6 +57,8 @@
             { "name": "noload", "hasAttribute": "noload", "title": "Don't Auto Load", "type": "boolean", "defaultValue": false },
             { "name": "table_class", "attribute": "table_class", "title": "Table CSS Class", "type": "text", "defaultValue": "table table-striped table-bordered table-hover" },
             { "name": "page_size", "attribute": "page_size", "title": "Page Size", "type": "number", "defaultValue": 20 },
+            { "name": "enable_column_search", "attribute": "enable_column_search", "title": "Enable Column Search", "type": "boolean", "defaultValue": false, "help": "Show individual search inputs below each column header. Column search values are exposed as top-level column_search object (e.g. datatable1.column_search.name). Bind each value to separate Server Connect params for proper column_search[name]=value query format." },
+            { "name": "enable_global_search", "attribute": "enable_global_search", "title": "Enable Global Search", "type": "boolean", "defaultValue": true, "help": "Show the global search box. When disabled, the global search input is hidden. Can be used independently of column search." },
             { "name": "theme", "attribute": "theme", "title": "Theme", "type": "droplist", "defaultValue": "bootstrap5", "values": [
               { "title": "Default", "value": "dataTables" },
               { "title": "Bootstrap 5", "value": "bootstrap5" },
@@ -64,6 +69,8 @@
         {
           "group": "Columns",
           "variables": [
+            { "name": "auto_detect_columns", "attribute": "auto_detect_columns", "title": "Auto Detect Columns", "type": "boolean", "defaultValue": true, "help": "When enabled, columns are automatically detected from the API response data. When disabled, use the Field Headers grid below to define columns manually." },
+            { "name": "use_grid_as_override", "attribute": "use_grid_as_override", "title": "Use Grid as Override", "type": "boolean", "defaultValue": false, "help": "Only applies when Auto Detect is ON. When enabled, grid entries override auto-detected column properties (header, searchable, orderable, search_type). When disabled, grid is ignored and columns are purely auto-detected." },
             {
               "name": "fields_header",
               "attribute": "dmx-bind:fields_header",
@@ -73,22 +80,30 @@
               "encloseBT": true,
               "jsonBT": true,
               "dataBindings": true,
-              "help": "Optional. Define columns manually. field = data key, header = display title, name = column identifier (defaults to field), default_content = fallback when value is null.",
-              "defaultValue": [
-                { "field": "id", "header": "ID", "name": "", "default_content": "" },
-                { "field": "name", "header": "Name", "name": "", "default_content": "" }
-              ],
+              "help": "When Auto Detect is ON + Override is ON: grid entries override auto-detected properties. When Auto Detect is OFF: grid defines columns (leave empty to fall back to data keys). Search type is auto-detected but can be overridden per column.",
+              "defaultValue": [],
               "columns": [
-                { "field": "field", "caption": "Field (data)", "size": "25%", "editable": { "type": "text" } },
-                { "field": "header", "caption": "Header (title)", "size": "25%", "editable": { "type": "text" } },
-                { "field": "name", "caption": "Name", "size": "25%", "editable": { "type": "text" } },
-                { "field": "default_content", "caption": "Default Content", "size": "25%", "editable": { "type": "text" } }
+                { "field": "field", "caption": "Field (data)", "size": "20%", "editable": { "type": "text" } },
+                { "field": "header", "caption": "Header (title)", "size": "20%", "editable": { "type": "text" } },
+                { "field": "name", "caption": "Name", "size": "15%", "editable": { "type": "text" } },
+                { "field": "default_content", "caption": "Default Content", "size": "15%", "editable": { "type": "text" } },
+                { "field": "searchable", "caption": "Searchable", "size": "10%", "editable": { "type": "checkbox" } },
+                { "field": "orderable", "caption": "Orderable", "size": "10%", "editable": { "type": "checkbox" } },
+                { "field": "search_type", "caption": "Search Type (optional)", "size": "10%", "editable": { "type": "droplist", "items": [
+                  { "title": "Auto", "value": "" },
+                  { "title": "Text", "value": "text" },
+                  { "title": "Number", "value": "number" },
+                  { "title": "Date", "value": "date" }
+                ] } }
               ],
               "newRecord": {
                 "field": "",
                 "header": "",
                 "name": "",
-                "default_content": ""
+                "default_content": "",
+                "searchable": true,
+                "orderable": true,
+                "search_type": ""
               }
             }
           ]
@@ -140,7 +155,7 @@
                     { "field": "tooltip", "caption": "Tooltip", "size": "15%", "editable": { "type": "text" } },
                     { "field": "icon_class", "caption": "Icon Class", "size": "20%", "editable": { "type": "text" } },
                     { "field": "btn_class", "caption": "Button Class", "size": "15%", "editable": { "type": "text" } },
-                    { "field": "condition", "caption": "Condition", "size": "10%", "editable": { "type": "text" } }
+                    { "field": "condition", "caption": "Condition", "size": "10%", "editable": { "type": "text", "dataBindings": true } }
                   ],
                   "newRecord": {
                     "enabled": true,
@@ -306,6 +321,552 @@
       ],
       "cssOrder": [],
       "jsOrder": []
+    }
+  ],
+  "events": [
+    {
+      "name": "dmx-datatable-server-request",
+      "attributeStartsWith": "dmx-on",
+      "attribute": "server_request",
+      "display": "fieldset",
+      "title": "Server Request",
+      "icon": "fa fa-lg fa-server",
+      "groupTitle": "DataTable Events",
+      "groupIcon": "fa fa-lg fa-table",
+      "defaultValue": false,
+      "show": ["serverRequestAction"],
+      "noChangeOnHide": true,
+      "type": "boolean",
+      "groupEnabler": true,
+      "children": [
+        {
+          "name": "serverRequestAction",
+          "attributeStartsWith": "dmx-on",
+          "attribute": "server_request",
+          "isValue": true,
+          "actionsPicker": true,
+          "title": "Action:",
+          "type": "text",
+          "help": "Choose the action to execute.",
+          "defaultValue": "",
+          "initDisplay": "none"
+        }
+      ],
+      "allowedOn": {
+        "dmx-datatable": true
+      }
+    },
+    {
+      "name": "dmx-datatable-row-clicked",
+      "attributeStartsWith": "dmx-on",
+      "attribute": "row_clicked",
+      "display": "fieldset",
+      "title": "Row Clicked",
+      "icon": "fa fa-lg fa-hand-pointer",
+      "groupTitle": "DataTable Events",
+      "groupIcon": "fa fa-lg fa-table",
+      "defaultValue": false,
+      "show": ["rowClickedAction"],
+      "noChangeOnHide": true,
+      "type": "boolean",
+      "groupEnabler": true,
+      "children": [
+        {
+          "name": "rowClickedAction",
+          "attributeStartsWith": "dmx-on",
+          "attribute": "row_clicked",
+          "isValue": true,
+          "actionsPicker": true,
+          "title": "Action:",
+          "type": "text",
+          "help": "Choose the action to execute.",
+          "defaultValue": "",
+          "initDisplay": "none"
+        }
+      ],
+      "allowedOn": {
+        "dmx-datatable": true
+      }
+    },
+    {
+      "name": "dmx-datatable-action-1",
+      "attributeStartsWith": "dmx-on",
+      "attribute": "action_1",
+      "display": "fieldset",
+      "title": "Action 1",
+      "icon": "fa fa-lg fa-bolt",
+      "groupTitle": "Action Button Events",
+      "groupIcon": "fa fa-lg fa-hand-pointer",
+      "defaultValue": false,
+      "show": ["action1Event"],
+      "noChangeOnHide": true,
+      "type": "boolean",
+      "groupEnabler": true,
+      "children": [
+        {
+          "name": "action1Event",
+          "attributeStartsWith": "dmx-on",
+          "attribute": "action_1",
+          "isValue": true,
+          "actionsPicker": true,
+          "title": "Action:",
+          "type": "text",
+          "help": "Choose the action to execute.",
+          "defaultValue": "",
+          "initDisplay": "none"
+        }
+      ],
+      "allowedOn": {
+        "dmx-datatable": true
+      }
+    },
+    {
+      "name": "dmx-datatable-action-2",
+      "attributeStartsWith": "dmx-on",
+      "attribute": "action_2",
+      "display": "fieldset",
+      "title": "Action 2",
+      "icon": "fa fa-lg fa-bolt",
+      "groupTitle": "Action Button Events",
+      "groupIcon": "fa fa-lg fa-hand-pointer",
+      "defaultValue": false,
+      "show": ["action2Event"],
+      "noChangeOnHide": true,
+      "type": "boolean",
+      "groupEnabler": true,
+      "children": [
+        {
+          "name": "action2Event",
+          "attributeStartsWith": "dmx-on",
+          "attribute": "action_2",
+          "isValue": true,
+          "actionsPicker": true,
+          "title": "Action:",
+          "type": "text",
+          "help": "Choose the action to execute.",
+          "defaultValue": "",
+          "initDisplay": "none"
+        }
+      ],
+      "allowedOn": {
+        "dmx-datatable": true
+      }
+    },
+    {
+      "name": "dmx-datatable-action-3",
+      "attributeStartsWith": "dmx-on",
+      "attribute": "action_3",
+      "display": "fieldset",
+      "title": "Action 3",
+      "icon": "fa fa-lg fa-bolt",
+      "groupTitle": "Action Button Events",
+      "groupIcon": "fa fa-lg fa-hand-pointer",
+      "defaultValue": false,
+      "show": ["action3Event"],
+      "noChangeOnHide": true,
+      "type": "boolean",
+      "groupEnabler": true,
+      "children": [
+        {
+          "name": "action3Event",
+          "attributeStartsWith": "dmx-on",
+          "attribute": "action_3",
+          "isValue": true,
+          "actionsPicker": true,
+          "title": "Action:",
+          "type": "text",
+          "help": "Choose the action to execute.",
+          "defaultValue": "",
+          "initDisplay": "none"
+        }
+      ],
+      "allowedOn": {
+        "dmx-datatable": true
+      }
+    },
+    {
+      "name": "dmx-datatable-action-4",
+      "attributeStartsWith": "dmx-on",
+      "attribute": "action_4",
+      "display": "fieldset",
+      "title": "Action 4",
+      "icon": "fa fa-lg fa-bolt",
+      "groupTitle": "Action Button Events",
+      "groupIcon": "fa fa-lg fa-hand-pointer",
+      "defaultValue": false,
+      "show": ["action4Event"],
+      "noChangeOnHide": true,
+      "type": "boolean",
+      "groupEnabler": true,
+      "children": [
+        {
+          "name": "action4Event",
+          "attributeStartsWith": "dmx-on",
+          "attribute": "action_4",
+          "isValue": true,
+          "actionsPicker": true,
+          "title": "Action:",
+          "type": "text",
+          "help": "Choose the action to execute.",
+          "defaultValue": "",
+          "initDisplay": "none"
+        }
+      ],
+      "allowedOn": {
+        "dmx-datatable": true
+      }
+    },
+    {
+      "name": "dmx-datatable-action-5",
+      "attributeStartsWith": "dmx-on",
+      "attribute": "action_5",
+      "display": "fieldset",
+      "title": "Action 5",
+      "icon": "fa fa-lg fa-bolt",
+      "groupTitle": "Action Button Events",
+      "groupIcon": "fa fa-lg fa-hand-pointer",
+      "defaultValue": false,
+      "show": ["action5Event"],
+      "noChangeOnHide": true,
+      "type": "boolean",
+      "groupEnabler": true,
+      "children": [
+        {
+          "name": "action5Event",
+          "attributeStartsWith": "dmx-on",
+          "attribute": "action_5",
+          "isValue": true,
+          "actionsPicker": true,
+          "title": "Action:",
+          "type": "text",
+          "help": "Choose the action to execute.",
+          "defaultValue": "",
+          "initDisplay": "none"
+        }
+      ],
+      "allowedOn": {
+        "dmx-datatable": true
+      }
+    },
+    {
+      "name": "dmx-datatable-action-6",
+      "attributeStartsWith": "dmx-on",
+      "attribute": "action_6",
+      "display": "fieldset",
+      "title": "Action 6",
+      "icon": "fa fa-lg fa-bolt",
+      "groupTitle": "Action Button Events",
+      "groupIcon": "fa fa-lg fa-hand-pointer",
+      "defaultValue": false,
+      "show": ["action6Event"],
+      "noChangeOnHide": true,
+      "type": "boolean",
+      "groupEnabler": true,
+      "children": [
+        {
+          "name": "action6Event",
+          "attributeStartsWith": "dmx-on",
+          "attribute": "action_6",
+          "isValue": true,
+          "actionsPicker": true,
+          "title": "Action:",
+          "type": "text",
+          "help": "Choose the action to execute.",
+          "defaultValue": "",
+          "initDisplay": "none"
+        }
+      ],
+      "allowedOn": {
+        "dmx-datatable": true
+      }
+    },
+    {
+      "name": "dmx-datatable-action-7",
+      "attributeStartsWith": "dmx-on",
+      "attribute": "action_7",
+      "display": "fieldset",
+      "title": "Action 7",
+      "icon": "fa fa-lg fa-bolt",
+      "groupTitle": "Action Button Events",
+      "groupIcon": "fa fa-lg fa-hand-pointer",
+      "defaultValue": false,
+      "show": ["action7Event"],
+      "noChangeOnHide": true,
+      "type": "boolean",
+      "groupEnabler": true,
+      "children": [
+        {
+          "name": "action7Event",
+          "attributeStartsWith": "dmx-on",
+          "attribute": "action_7",
+          "isValue": true,
+          "actionsPicker": true,
+          "title": "Action:",
+          "type": "text",
+          "help": "Choose the action to execute.",
+          "defaultValue": "",
+          "initDisplay": "none"
+        }
+      ],
+      "allowedOn": {
+        "dmx-datatable": true
+      }
+    },
+    {
+      "name": "dmx-datatable-action-8",
+      "attributeStartsWith": "dmx-on",
+      "attribute": "action_8",
+      "display": "fieldset",
+      "title": "Action 8",
+      "icon": "fa fa-lg fa-bolt",
+      "groupTitle": "Action Button Events",
+      "groupIcon": "fa fa-lg fa-hand-pointer",
+      "defaultValue": false,
+      "show": ["action8Event"],
+      "noChangeOnHide": true,
+      "type": "boolean",
+      "groupEnabler": true,
+      "children": [
+        {
+          "name": "action8Event",
+          "attributeStartsWith": "dmx-on",
+          "attribute": "action_8",
+          "isValue": true,
+          "actionsPicker": true,
+          "title": "Action:",
+          "type": "text",
+          "help": "Choose the action to execute.",
+          "defaultValue": "",
+          "initDisplay": "none"
+        }
+      ],
+      "allowedOn": {
+        "dmx-datatable": true
+      }
+    },
+    {
+      "name": "dmx-datatable-action-9",
+      "attributeStartsWith": "dmx-on",
+      "attribute": "action_9",
+      "display": "fieldset",
+      "title": "Action 9",
+      "icon": "fa fa-lg fa-bolt",
+      "groupTitle": "Action Button Events",
+      "groupIcon": "fa fa-lg fa-hand-pointer",
+      "defaultValue": false,
+      "show": ["action9Event"],
+      "noChangeOnHide": true,
+      "type": "boolean",
+      "groupEnabler": true,
+      "children": [
+        {
+          "name": "action9Event",
+          "attributeStartsWith": "dmx-on",
+          "attribute": "action_9",
+          "isValue": true,
+          "actionsPicker": true,
+          "title": "Action:",
+          "type": "text",
+          "help": "Choose the action to execute.",
+          "defaultValue": "",
+          "initDisplay": "none"
+        }
+      ],
+      "allowedOn": {
+        "dmx-datatable": true
+      }
+    },
+    {
+      "name": "dmx-datatable-action-10",
+      "attributeStartsWith": "dmx-on",
+      "attribute": "action_10",
+      "display": "fieldset",
+      "title": "Action 10",
+      "icon": "fa fa-lg fa-bolt",
+      "groupTitle": "Action Button Events",
+      "groupIcon": "fa fa-lg fa-hand-pointer",
+      "defaultValue": false,
+      "show": ["action10Event"],
+      "noChangeOnHide": true,
+      "type": "boolean",
+      "groupEnabler": true,
+      "children": [
+        {
+          "name": "action10Event",
+          "attributeStartsWith": "dmx-on",
+          "attribute": "action_10",
+          "isValue": true,
+          "actionsPicker": true,
+          "title": "Action:",
+          "type": "text",
+          "help": "Choose the action to execute.",
+          "defaultValue": "",
+          "initDisplay": "none"
+        }
+      ],
+      "allowedOn": {
+        "dmx-datatable": true
+      }
+    },
+    {
+      "name": "dmx-datatable-action-11",
+      "attributeStartsWith": "dmx-on",
+      "attribute": "action_11",
+      "display": "fieldset",
+      "title": "Action 11",
+      "icon": "fa fa-lg fa-bolt",
+      "groupTitle": "Action Button Events",
+      "groupIcon": "fa fa-lg fa-hand-pointer",
+      "defaultValue": false,
+      "show": ["action11Event"],
+      "noChangeOnHide": true,
+      "type": "boolean",
+      "groupEnabler": true,
+      "children": [
+        {
+          "name": "action11Event",
+          "attributeStartsWith": "dmx-on",
+          "attribute": "action_11",
+          "isValue": true,
+          "actionsPicker": true,
+          "title": "Action:",
+          "type": "text",
+          "help": "Choose the action to execute.",
+          "defaultValue": "",
+          "initDisplay": "none"
+        }
+      ],
+      "allowedOn": {
+        "dmx-datatable": true
+      }
+    },
+    {
+      "name": "dmx-datatable-action-12",
+      "attributeStartsWith": "dmx-on",
+      "attribute": "action_12",
+      "display": "fieldset",
+      "title": "Action 12",
+      "icon": "fa fa-lg fa-bolt",
+      "groupTitle": "Action Button Events",
+      "groupIcon": "fa fa-lg fa-hand-pointer",
+      "defaultValue": false,
+      "show": ["action12Event"],
+      "noChangeOnHide": true,
+      "type": "boolean",
+      "groupEnabler": true,
+      "children": [
+        {
+          "name": "action12Event",
+          "attributeStartsWith": "dmx-on",
+          "attribute": "action_12",
+          "isValue": true,
+          "actionsPicker": true,
+          "title": "Action:",
+          "type": "text",
+          "help": "Choose the action to execute.",
+          "defaultValue": "",
+          "initDisplay": "none"
+        }
+      ],
+      "allowedOn": {
+        "dmx-datatable": true
+      }
+    },
+    {
+      "name": "dmx-datatable-action-13",
+      "attributeStartsWith": "dmx-on",
+      "attribute": "action_13",
+      "display": "fieldset",
+      "title": "Action 13",
+      "icon": "fa fa-lg fa-bolt",
+      "groupTitle": "Action Button Events",
+      "groupIcon": "fa fa-lg fa-hand-pointer",
+      "defaultValue": false,
+      "show": ["action13Event"],
+      "noChangeOnHide": true,
+      "type": "boolean",
+      "groupEnabler": true,
+      "children": [
+        {
+          "name": "action13Event",
+          "attributeStartsWith": "dmx-on",
+          "attribute": "action_13",
+          "isValue": true,
+          "actionsPicker": true,
+          "title": "Action:",
+          "type": "text",
+          "help": "Choose the action to execute.",
+          "defaultValue": "",
+          "initDisplay": "none"
+        }
+      ],
+      "allowedOn": {
+        "dmx-datatable": true
+      }
+    },
+    {
+      "name": "dmx-datatable-action-14",
+      "attributeStartsWith": "dmx-on",
+      "attribute": "action_14",
+      "display": "fieldset",
+      "title": "Action 14",
+      "icon": "fa fa-lg fa-bolt",
+      "groupTitle": "Action Button Events",
+      "groupIcon": "fa fa-lg fa-hand-pointer",
+      "defaultValue": false,
+      "show": ["action14Event"],
+      "noChangeOnHide": true,
+      "type": "boolean",
+      "groupEnabler": true,
+      "children": [
+        {
+          "name": "action14Event",
+          "attributeStartsWith": "dmx-on",
+          "attribute": "action_14",
+          "isValue": true,
+          "actionsPicker": true,
+          "title": "Action:",
+          "type": "text",
+          "help": "Choose the action to execute.",
+          "defaultValue": "",
+          "initDisplay": "none"
+        }
+      ],
+      "allowedOn": {
+        "dmx-datatable": true
+      }
+    },
+    {
+      "name": "dmx-datatable-action-15",
+      "attributeStartsWith": "dmx-on",
+      "attribute": "action_15",
+      "display": "fieldset",
+      "title": "Action 15",
+      "icon": "fa fa-lg fa-bolt",
+      "groupTitle": "Action Button Events",
+      "groupIcon": "fa fa-lg fa-hand-pointer",
+      "defaultValue": false,
+      "show": ["action15Event"],
+      "noChangeOnHide": true,
+      "type": "boolean",
+      "groupEnabler": true,
+      "children": [
+        {
+          "name": "action15Event",
+          "attributeStartsWith": "dmx-on",
+          "attribute": "action_15",
+          "isValue": true,
+          "actionsPicker": true,
+          "title": "Action:",
+          "type": "text",
+          "help": "Choose the action to execute.",
+          "defaultValue": "",
+          "initDisplay": "none"
+        }
+      ],
+      "allowedOn": {
+        "dmx-datatable": true
+      }
     }
   ]
 }
