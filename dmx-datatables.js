@@ -1231,22 +1231,25 @@ dmx.Component("datatable", {
       var row = JSON.parse(JSON.stringify(dtRow));
 
       comp.set('id', row.id != null ? row.id : null);
-      comp.set('data', row);
-      comp.set('row', row);
+      comp.set('data', Object.assign({}, row));
+      comp.set('row', Object.assign({}, row));
 
-      var actionButton = evt.target.closest('.dmx-dt-action-btn');
-      if (actionButton) {
-        var actionNum = parseInt(actionButton.getAttribute('data-dmx-action-num'), 10) || 0;
-        var actionName = actionButton.getAttribute('data-dmx-action') || '';
-        comp.set('action_name', actionName);
-        comp.set('action_number', actionNum);
-        if (actionNum >= 1 && actionNum <= 15) {
-          comp.dispatchEvent('action_' + actionNum);
+      // Force Wappler reactivity to pick up nested property changes
+      dmx.nextTick(function () {
+        var actionButton = evt.target.closest('.dmx-dt-action-btn');
+        if (actionButton) {
+          var actionNum = parseInt(actionButton.getAttribute('data-dmx-action-num'), 10) || 0;
+          var actionName = actionButton.getAttribute('data-dmx-action') || '';
+          comp.set('action_name', actionName);
+          comp.set('action_number', actionNum);
+          if (actionNum >= 1 && actionNum <= 15) {
+            comp.dispatchEvent('action_' + actionNum);
+          }
+          return;
         }
-        return;
-      }
 
-      comp.dispatchEvent('row_clicked');
+        comp.dispatchEvent('row_clicked');
+      });
     };
 
     this._tableEl.addEventListener('click', this._rowClickHandler);
