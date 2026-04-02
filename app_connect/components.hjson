@@ -59,6 +59,7 @@
             { "name": "page_size", "attribute": "page_size", "title": "Page Size", "type": "number", "defaultValue": 20 },
             { "name": "enable_column_search", "attribute": "enable_column_search", "title": "Enable Column Search", "type": "boolean", "defaultValue": false, "help": "Show individual search inputs below each column header. Column search values are exposed as top-level column_search object (e.g. datatable1.column_search.name). Bind each value to separate Server Connect params for proper column_search[name]=value query format." },
             { "name": "enable_global_search", "attribute": "enable_global_search", "title": "Enable Global Search", "type": "boolean", "defaultValue": true, "help": "Show the global search box. When disabled, the global search input is hidden. Can be used independently of column search." },
+            { "name": "enable_column_reorder", "attribute": "enable_column_reorder", "title": "Enable Column Reorder", "type": "boolean", "defaultValue": false, "help": "Allow users to drag-and-drop column headers to reorder columns. The order is saved per page and datatable in localStorage so it persists across sessions." },
             { "name": "theme", "attribute": "theme", "title": "Theme", "type": "droplist", "defaultValue": "bootstrap5", "values": [
               { "title": "Default", "value": "dataTables" },
               { "title": "Bootstrap 5", "value": "bootstrap5" },

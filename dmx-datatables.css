@@ -24,13 +24,137 @@ th.dt-nowrap {
   padding: 4px 8px;
 }
 
-tfoot th,
-.dmx-dt-col-search-row th {
+tfoot th {
   padding: 4px 8px;
 }
 
-.dmx-dt-col-search-row {
-  background: inherit;
+/* Column header with filter icon */
+th .dmx-dt-header-content {
+  display: inline;
+}
+
+.dmx-dt-filter-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  margin-left: 6px;
+  padding: 2px;
+  border-radius: 4px;
+  cursor: pointer;
+  opacity: 0.4;
+  vertical-align: middle;
+  transition: opacity 0.15s, background-color 0.15s;
+  position: relative;
+}
+
+.dmx-dt-filter-icon:hover {
+  opacity: 0.8;
+  background-color: rgba(0, 0, 0, 0.08);
+}
+
+.dmx-dt-filter-icon.dmx-dt-filter-active {
+  opacity: 1;
+  color: #0d6efd;
+  background-color: rgba(13, 110, 253, 0.1);
+}
+
+/* Floating filter popup */
+.dmx-dt-filter-popup {
+  display: none;
+  position: absolute;
+  z-index: 10000;
+  min-width: 220px;
+  max-width: 320px;
+  background: #fff;
+  border: 1px solid #dee2e6;
+  border-radius: 6px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+  font-size: 0.875rem;
+  font-weight: normal;
+  text-align: left;
+}
+
+.dmx-dt-filter-popup-open {
+  display: block;
+}
+
+.dmx-dt-filter-popup-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  border-bottom: 1px solid #e9ecef;
+  font-weight: 600;
+  font-size: 0.8rem;
+  color: #495057;
+}
+
+.dmx-dt-filter-clear-btn {
+  background: none;
+  border: 1px solid #dee2e6;
+  border-radius: 4px;
+  padding: 2px 10px;
+  font-size: 0.75rem;
+  color: #6c757d;
+  cursor: pointer;
+  transition: background-color 0.15s, color 0.15s;
+}
+
+.dmx-dt-filter-clear-btn:hover {
+  background-color: #f8f9fa;
+  color: #212529;
+}
+
+.dmx-dt-filter-popup-body {
+  padding: 10px 12px;
+}
+
+.dmx-dt-filter-popup-body input,
+.dmx-dt-filter-popup-body select {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* Text condition filter (AG Grid style) */
+.dmx-dt-text-condition {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.dmx-dt-text-condition .dmx-dt-text-op {
+  font-size: 0.8rem;
+}
+
+.dmx-dt-text-condition .dmx-dt-text-val {
+  font-size: 0.8rem;
+}
+
+.dmx-dt-text-join {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 0;
+  border-top: 1px solid #e9ecef;
+  border-bottom: 1px solid #e9ecef;
+  margin: 6px 0;
+}
+
+.dmx-dt-text-join input[type="radio"] {
+  width: auto;
+  margin: 0;
+  cursor: pointer;
+}
+
+.dmx-dt-join-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #495057;
+  margin-right: 10px;
+  cursor: pointer;
+  user-select: none;
 }
 
 /* Date range search */
@@ -60,6 +184,39 @@ tfoot th,
 .dmx-dt-col-search-number input[type="number"] {
   font-size: 0.8em;
   padding: 2px 4px;
+}
+
+/* Column Reorder */
+th[draggable="true"] {
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.dmx-dt-reorder-dragging {
+  opacity: 0.4;
+}
+
+.dmx-dt-reorder-left {
+  border-left: 3px solid #0d6efd !important;
+}
+
+.dmx-dt-reorder-right {
+  border-right: 3px solid #0d6efd !important;
+}
+
+.dmx-dt-reorder-ghost {
+  position: absolute;
+  top: -9999px;
+  left: -9999px;
+  padding: 6px 14px;
+  background: #0d6efd;
+  color: #fff;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: 99999;
 }
 
 @media (max-width: 768px) {

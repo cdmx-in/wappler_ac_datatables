@@ -46,6 +46,7 @@ dmx.Component("datatable", {
     action_btns: { type: Array, default: [] },
     enable_column_search: { type: Boolean, default: false },
     enable_global_search: { type: Boolean, default: true },
+    enable_column_reorder: { type: Boolean, default: false },
     export_options: { type: Array, default: [
       { "enabled": false, "type": "copy", "title": "Copy" },
       { "enabled": true, "type": "csv", "title": "CSV" },
@@ -102,6 +103,7 @@ dmx.Component("datatable", {
     this._columnsDetected = false;
     this._loadedTheme = null;
     this._themeElements = [];
+    this._reorderCleanup = null;
   },
 
   render: function () {
@@ -181,7 +183,8 @@ dmx.Component("datatable", {
       updatedProps.has('table_class') ||
       updatedProps.has('page_size') ||
       updatedProps.has('enable_column_search') ||
-      updatedProps.has('enable_global_search')
+      updatedProps.has('enable_global_search') ||
+      updatedProps.has('enable_column_reorder')
     ) {
       this._createTable();
       return;
@@ -255,12 +258,25 @@ dmx.Component("datatable", {
   },
 
   destroy: function () {
+    this._closeActivePopup();
     this._destroyTable();
     this._unloadTheme();
     this._pendingCallback = null;
   },
 
   _destroyTable: function () {
+    this._closeActivePopup();
+
+    // Clean up column reorder listeners
+    if (this._reorderCleanup) {
+      this._reorderCleanup();
+      this._reorderCleanup = null;
+    }
+
+    // Remove all filter popups belonging to this instance
+    var popups = document.querySelectorAll('.dmx-dt-filter-popup[data-dmx-dt-id="' + (this.props.id || '') + '"]');
+    popups.forEach(function (el) { el.parentNode.removeChild(el); });
+
     if (this._rowClickHandler && this._tableEl) {
       this._tableEl.removeEventListener('click', this._rowClickHandler);
       this._rowClickHandler = null;
@@ -695,6 +711,219 @@ dmx.Component("datatable", {
     th.appendChild(container);
   },
 
+  _buildTextConditionRow: function () {
+    var row = document.createElement('div');
+    row.className = 'dmx-dt-text-condition';
+
+    var opSelect = document.createElement('select');
+    opSelect.className = 'dmx-dt-col-search form-control form-control-sm dmx-dt-text-op';
+    var ops = [
+      { value: 'contains', label: 'Contains' },
+      { value: 'notContains', label: 'Does not contain' },
+      { value: 'equals', label: 'Equals' },
+      { value: 'notEquals', label: 'Does not equal' },
+      { value: 'startsWith', label: 'Starts with' },
+      { value: 'endsWith', label: 'Ends with' },
+      { value: 'blank', label: 'Is blank' },
+      { value: 'notBlank', label: 'Is not blank' }
+    ];
+    ops.forEach(function (o) {
+      var opt = document.createElement('option');
+      opt.value = o.value;
+      opt.textContent = o.label;
+      opSelect.appendChild(opt);
+    });
+
+    var valInput = document.createElement('input');
+    valInput.type = 'text';
+    valInput.className = 'dmx-dt-col-search form-control form-control-sm dmx-dt-text-val';
+    valInput.placeholder = 'Filter value...';
+
+    // Hide input for blank/notBlank
+    opSelect.addEventListener('change', function () {
+      var isBlankOp = this.value === 'blank' || this.value === 'notBlank';
+      valInput.style.display = isBlankOp ? 'none' : '';
+      if (isBlankOp) valInput.value = '';
+    });
+
+    opSelect.addEventListener('click', function (e) { e.stopPropagation(); });
+    valInput.addEventListener('click', function (e) { e.stopPropagation(); });
+
+    row.appendChild(opSelect);
+    row.appendChild(valInput);
+    return { container: row, opSelect: opSelect, valInput: valInput };
+  },
+
+  _buildTextSearchInput: function (col, container, iconBtn, clearBtn) {
+    var comp = this;
+
+    // Build condition 1
+    var cond1 = this._buildTextConditionRow();
+    container.appendChild(cond1.container);
+
+    // AND/OR join selector (hidden initially)
+    var joinRow = document.createElement('div');
+    joinRow.className = 'dmx-dt-text-join';
+    joinRow.style.display = 'none';
+    var andRadio = document.createElement('input');
+    andRadio.type = 'radio';
+    andRadio.name = 'dmx-text-join-' + col.index();
+    andRadio.id = 'dmx-text-join-and-' + col.index();
+    andRadio.value = 'and';
+    andRadio.checked = true;
+    var andLabel = document.createElement('label');
+    andLabel.htmlFor = andRadio.id;
+    andLabel.textContent = 'AND';
+    andLabel.className = 'dmx-dt-join-label';
+
+    var orRadio = document.createElement('input');
+    orRadio.type = 'radio';
+    orRadio.name = 'dmx-text-join-' + col.index();
+    orRadio.id = 'dmx-text-join-or-' + col.index();
+    orRadio.value = 'or';
+    var orLabel = document.createElement('label');
+    orLabel.htmlFor = orRadio.id;
+    orLabel.textContent = 'OR';
+    orLabel.className = 'dmx-dt-join-label';
+
+    joinRow.appendChild(andRadio);
+    joinRow.appendChild(andLabel);
+    joinRow.appendChild(orRadio);
+    joinRow.appendChild(orLabel);
+    joinRow.addEventListener('click', function (e) { e.stopPropagation(); });
+    container.appendChild(joinRow);
+
+    // Build condition 2 (hidden initially)
+    var cond2 = this._buildTextConditionRow();
+    cond2.container.style.display = 'none';
+    container.appendChild(cond2.container);
+
+    // Show/hide second condition based on first condition having a value
+    function updateSecondConditionVisibility() {
+      var op1 = cond1.opSelect.value;
+      var v1 = cond1.valInput.value;
+      var hasCond1 = (op1 === 'blank' || op1 === 'notBlank') || v1.trim() !== '';
+
+      if (hasCond1) {
+        joinRow.style.display = '';
+        cond2.container.style.display = '';
+      } else {
+        joinRow.style.display = 'none';
+        cond2.container.style.display = 'none';
+      }
+    }
+
+    var debounceTimer;
+    function triggerSearch() {
+      updateSecondConditionVisibility();
+
+      var op1 = cond1.opSelect.value;
+      var v1 = cond1.valInput.value;
+      var op2 = cond2.opSelect.value;
+      var v2 = cond2.valInput.value;
+      var join = andRadio.checked ? 'and' : 'or';
+
+      var parts = [];
+      var hasCond1 = (op1 === 'blank' || op1 === 'notBlank') || v1.trim() !== '';
+      var hasCond2 = (op2 === 'blank' || op2 === 'notBlank') || v2.trim() !== '';
+
+      if (hasCond1) {
+        parts.push('txt:' + op1 + ':' + v1);
+      }
+      // Only include second condition if first is filled AND second has a value
+      if (hasCond1 && hasCond2) {
+        parts.push(join);
+        parts.push('txt:' + op2 + ':' + v2);
+      }
+
+      var val = parts.join('|');
+      clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(function () {
+        if (col.search() !== val) {
+          col.search(val).draw();
+        }
+        comp._updateFilterIconState(iconBtn, !!val);
+      }, 300);
+    }
+
+    cond1.valInput.addEventListener('input', triggerSearch);
+    cond1.opSelect.addEventListener('change', triggerSearch);
+    cond2.valInput.addEventListener('input', triggerSearch);
+    cond2.opSelect.addEventListener('change', triggerSearch);
+    andRadio.addEventListener('change', triggerSearch);
+    orRadio.addEventListener('change', triggerSearch);
+
+    // Clear handler
+    clearBtn.addEventListener('click', function (e) {
+      e.stopPropagation();
+      cond1.opSelect.selectedIndex = 0;
+      cond1.valInput.value = '';
+      cond1.valInput.style.display = '';
+      cond2.opSelect.selectedIndex = 0;
+      cond2.valInput.value = '';
+      cond2.valInput.style.display = '';
+      andRadio.checked = true;
+      joinRow.style.display = 'none';
+      cond2.container.style.display = 'none';
+      col.search('').draw();
+      comp._updateFilterIconState(iconBtn, false);
+      comp._closeActivePopup();
+    });
+  },
+
+  _activeFilterPopup: null,
+  _outsideClickHandler: null,
+
+  _closeActivePopup: function () {
+    if (this._activeFilterPopup) {
+      this._activeFilterPopup.classList.remove('dmx-dt-filter-popup-open');
+      this._activeFilterPopup = null;
+    }
+    if (this._outsideClickHandler) {
+      document.removeEventListener('mousedown', this._outsideClickHandler);
+      this._outsideClickHandler = null;
+    }
+  },
+
+  _openFilterPopup: function (popup, iconBtn) {
+    var comp = this;
+
+    // Close any previously open popup
+    this._closeActivePopup();
+
+    // Position the popup below the icon button
+    var rect = iconBtn.getBoundingClientRect();
+    var scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+    var scrollLeft = window.pageXOffset || document.documentElement.scrollLeft;
+
+    popup.style.top = (rect.bottom + scrollTop + 4) + 'px';
+    popup.style.left = (rect.left + scrollLeft) + 'px';
+    popup.classList.add('dmx-dt-filter-popup-open');
+    this._activeFilterPopup = popup;
+
+    // Auto-focus first input
+    var firstInput = popup.querySelector('input, select');
+    if (firstInput) setTimeout(function () { firstInput.focus(); }, 50);
+
+    // Close on outside click
+    this._outsideClickHandler = function (e) {
+      if (!popup.contains(e.target) && e.target !== iconBtn && !iconBtn.contains(e.target)) {
+        comp._closeActivePopup();
+      }
+    };
+    setTimeout(function () {
+      document.addEventListener('mousedown', comp._outsideClickHandler);
+    }, 0);
+  },
+
+  _updateFilterIconState: function (iconBtn, hasValue) {
+    if (hasValue) {
+      iconBtn.classList.add('dmx-dt-filter-active');
+    } else {
+      iconBtn.classList.remove('dmx-dt-filter-active');
+    }
+  },
+
   _setupColumnSearch: function () {
     if (!this.props.enable_column_search || !this._tableInstance) return;
 
@@ -703,55 +932,126 @@ dmx.Component("datatable", {
     var thead = this._tableEl.querySelector('thead');
     if (!thead) return;
 
-    // Remove any previous search row
-    var existing = thead.querySelector('.dmx-dt-col-search-row');
-    if (existing) existing.parentNode.removeChild(existing);
+    // Remove any previous search row (legacy cleanup)
+    var existingRow = thead.querySelector('.dmx-dt-col-search-row');
+    if (existingRow) existingRow.parentNode.removeChild(existingRow);
 
-    var tr = document.createElement('tr');
-    tr.className = 'dmx-dt-col-search-row';
+    // Remove any previous filter icons and popups
+    var oldIcons = thead.querySelectorAll('.dmx-dt-filter-icon');
+    oldIcons.forEach(function (el) { el.parentNode.removeChild(el); });
+    var oldPopups = document.querySelectorAll('.dmx-dt-filter-popup[data-dmx-dt-id="' + (comp.props.id || '') + '"]');
+    oldPopups.forEach(function (el) { el.parentNode.removeChild(el); });
+
     api.columns().every(function () {
       var col = this;
-      var th = document.createElement('th');
+      var headerEl = col.header();
       var colName = col.dataSrc();
       var colSettings = api.settings()[0].aoColumns[col.index()];
 
-      if (colName === null || col.header().textContent === 'Actions' || colSettings.bSearchable === false) {
-        th.innerHTML = '';
-      } else {
-        var searchType = comp._getSearchTypeForColumn(colSettings.sName || colName);
-
-        if (searchType === 'date') {
-          comp._buildDateSearchInput(col, th);
-        } else if (searchType === 'number') {
-          comp._buildNumberSearchInput(col, th);
-        } else {
-          var input = document.createElement('input');
-          input.type = 'text';
-          input.className = 'dmx-dt-col-search form-control form-control-sm';
-          input.placeholder = 'Search ' + (col.header().textContent || '');
-          input.setAttribute('data-col-index', col.index());
-
-          var debounceTimer;
-          input.addEventListener('input', function () {
-            var val = this.value;
-            clearTimeout(debounceTimer);
-            debounceTimer = setTimeout(function () {
-              if (col.search() !== val) {
-                col.search(val).draw();
-              }
-            }, 300);
-          });
-
-          input.addEventListener('click', function (e) {
-            e.stopPropagation();
-          });
-
-          th.appendChild(input);
-        }
+      if (colName === null || headerEl.textContent === 'Actions' || colSettings.bSearchable === false) {
+        return;
       }
-      tr.appendChild(th);
+
+      // Make header a flex container for title + icon
+      headerEl.style.position = 'relative';
+      if (!headerEl.querySelector('.dmx-dt-header-content')) {
+        var titleText = headerEl.innerHTML;
+        headerEl.innerHTML = '';
+        var contentSpan = document.createElement('span');
+        contentSpan.className = 'dmx-dt-header-content';
+        contentSpan.innerHTML = titleText;
+        headerEl.appendChild(contentSpan);
+      }
+
+      // Create filter icon button
+      var iconBtn = document.createElement('span');
+      iconBtn.className = 'dmx-dt-filter-icon';
+      iconBtn.title = 'Filter ' + (headerEl.querySelector('.dmx-dt-header-content').textContent || '');
+      iconBtn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" width="14" height="14" fill="currentColor"><path d="M1.5 1.5A.5.5 0 0 1 2 1h12a.5.5 0 0 1 .5.5v2a.5.5 0 0 1-.128.334L10 8.692V13.5a.5.5 0 0 1-.342.474l-3 1A.5.5 0 0 1 6 14.5V8.692L1.628 3.834A.5.5 0 0 1 1.5 3.5v-2z"/></svg>';
+      headerEl.appendChild(iconBtn);
+
+      // Create floating popup
+      var popup = document.createElement('div');
+      popup.className = 'dmx-dt-filter-popup';
+      popup.setAttribute('data-dmx-dt-id', comp.props.id || '');
+
+      var popupHeader = document.createElement('div');
+      popupHeader.className = 'dmx-dt-filter-popup-header';
+      popupHeader.innerHTML = '<span>Filter: ' + comp._escapeAttr(headerEl.querySelector('.dmx-dt-header-content').textContent || '') + '</span>';
+
+      var clearBtn = document.createElement('button');
+      clearBtn.type = 'button';
+      clearBtn.className = 'dmx-dt-filter-clear-btn';
+      clearBtn.textContent = 'Clear';
+      popupHeader.appendChild(clearBtn);
+      popup.appendChild(popupHeader);
+
+      var popupBody = document.createElement('div');
+      popupBody.className = 'dmx-dt-filter-popup-body';
+
+      var searchType = comp._getSearchTypeForColumn(colSettings.sName || colName);
+
+      if (searchType === 'date') {
+        comp._buildDateSearchInput(col, popupBody);
+      } else if (searchType === 'number') {
+        comp._buildNumberSearchInput(col, popupBody);
+      } else {
+        comp._buildTextSearchInput(col, popupBody, iconBtn, clearBtn);
+      }
+
+      // Clear button handler for date/number
+      if (searchType === 'date' || searchType === 'number') {
+        clearBtn.addEventListener('click', function (e) {
+          e.stopPropagation();
+          var inputs = popupBody.querySelectorAll('input');
+          inputs.forEach(function (inp) { inp.value = ''; });
+          var selects = popupBody.querySelectorAll('select');
+          selects.forEach(function (sel) { sel.selectedIndex = 0; });
+          // Hide "Max" field for number between
+          var val2 = popupBody.querySelector('.dmx-dt-num-val2');
+          if (val2) val2.style.display = 'none';
+          col.search('').draw();
+          comp._updateFilterIconState(iconBtn, false);
+          comp._closeActivePopup();
+        });
+      }
+
+      popup.appendChild(popupBody);
+      document.body.appendChild(popup);
+
+      // Stop propagation within popup to prevent DataTables sorting
+      popup.addEventListener('mousedown', function (e) { e.stopPropagation(); });
+      popup.addEventListener('click', function (e) { e.stopPropagation(); });
+
+      // Toggle popup on icon click
+      iconBtn.addEventListener('click', function (e) {
+        e.stopPropagation();
+        e.preventDefault();
+        if (comp._activeFilterPopup === popup) {
+          comp._closeActivePopup();
+        } else {
+          comp._openFilterPopup(popup, iconBtn);
+        }
+      });
+
+      // Track filter state on date/number changes too
+      if (searchType === 'date' || searchType === 'number') {
+        var allInputs = popupBody.querySelectorAll('input');
+        allInputs.forEach(function (inp) {
+          var origHandler = inp.oninput;
+          inp.addEventListener('input', function () {
+            setTimeout(function () {
+              comp._updateFilterIconState(iconBtn, !!col.search());
+            }, 350);
+          });
+          inp.addEventListener('change', function () {
+            setTimeout(function () {
+              comp._updateFilterIconState(iconBtn, !!col.search());
+            }, 350);
+          });
+        });
+      }
     });
-    thead.appendChild(tr);
   },
 
   _createTable: function () {
@@ -888,7 +1188,26 @@ dmx.Component("datatable", {
       comp.dispatchEvent('server_request');
     };
 
+    // Apply saved column order before creating the table
+    if (this.props.enable_column_reorder) {
+      var savedOrder = this._loadColumnOrder();
+      if (savedOrder && savedOrder.length === columns.length) {
+        var reordered = new Array(columns.length);
+        var valid = true;
+        for (var i = 0; i < savedOrder.length; i++) {
+          var idx = savedOrder[i];
+          if (idx < 0 || idx >= columns.length || reordered[i] !== undefined) { valid = false; break; }
+          reordered[i] = columns[idx];
+        }
+        if (valid) options.columns = reordered;
+      }
+    }
+
     this._tableInstance = new DataTable(this._tableEl, options);
+
+    if (this.props.enable_column_reorder) {
+      this._setupColumnReorder();
+    }
 
     this._setupColumnSearch();
 
@@ -934,5 +1253,173 @@ dmx.Component("datatable", {
 
     this.set('count', parsed.rows.length);
     this.set('state', { tableReady: true, loading: false });
+  },
+
+  // ── Column Reorder ──
+
+  _getReorderStorageKey: function () {
+    var page = window.location.pathname;
+    var id = this.props.id || 'default';
+    return 'dmx-dt-col-order::' + page + '::' + id;
+  },
+
+  _saveColumnOrder: function (order) {
+    try {
+      localStorage.setItem(this._getReorderStorageKey(), JSON.stringify(order));
+    } catch (e) { }
+  },
+
+  _loadColumnOrder: function () {
+    try {
+      var raw = localStorage.getItem(this._getReorderStorageKey());
+      if (raw) return JSON.parse(raw);
+    } catch (e) { }
+    return null;
+  },
+
+  _setupColumnReorder: function () {
+    if (!this._tableInstance) return;
+
+    var comp = this;
+    var thead = this._tableEl.querySelector('thead');
+    if (!thead) return;
+
+    var headerRow = thead.querySelector('tr');
+    if (!headerRow) return;
+
+    var dragSrcIndex = null;
+    var dragGhost = null;
+    var placeholder = null;
+    var headerCells = null;
+
+    function getHeaderCells() {
+      return Array.prototype.slice.call(headerRow.querySelectorAll('th'));
+    }
+
+    function onDragStart(e) {
+      var th = e.target.closest('th');
+      if (!th || !headerRow.contains(th)) return;
+      // Don't drag from filter icons or interactive elements
+      if (e.target.closest('.dmx-dt-filter-icon')) return;
+
+      headerCells = getHeaderCells();
+      dragSrcIndex = headerCells.indexOf(th);
+      if (dragSrcIndex === -1) return;
+
+      th.classList.add('dmx-dt-reorder-dragging');
+
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', String(dragSrcIndex));
+
+      // Create a minimal drag ghost
+      dragGhost = document.createElement('div');
+      dragGhost.className = 'dmx-dt-reorder-ghost';
+      dragGhost.textContent = (th.querySelector('.dmx-dt-header-content') || th).textContent;
+      document.body.appendChild(dragGhost);
+      e.dataTransfer.setDragImage(dragGhost, 40, 16);
+    }
+
+    function onDragOver(e) {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+
+      var th = e.target.closest('th');
+      if (!th || !headerRow.contains(th)) return;
+
+      // Remove previous indicators
+      headerCells.forEach(function (cell) {
+        cell.classList.remove('dmx-dt-reorder-left', 'dmx-dt-reorder-right');
+      });
+
+      var targetIndex = headerCells.indexOf(th);
+      if (targetIndex === -1 || targetIndex === dragSrcIndex) return;
+
+      // Show drop indicator on the correct side
+      if (targetIndex < dragSrcIndex) {
+        th.classList.add('dmx-dt-reorder-left');
+      } else {
+        th.classList.add('dmx-dt-reorder-right');
+      }
+    }
+
+    function onDragLeave(e) {
+      var th = e.target.closest('th');
+      if (th) {
+        th.classList.remove('dmx-dt-reorder-left', 'dmx-dt-reorder-right');
+      }
+    }
+
+    function onDrop(e) {
+      e.preventDefault();
+      var th = e.target.closest('th');
+      if (!th || !headerRow.contains(th)) return;
+
+      var targetIndex = headerCells.indexOf(th);
+      if (targetIndex === -1 || targetIndex === dragSrcIndex || dragSrcIndex === null) return;
+
+      // Reorder via DataTables: swap column positions
+      comp._reorderColumns(dragSrcIndex, targetIndex);
+    }
+
+    function onDragEnd(e) {
+      // Clean up all drag state
+      if (headerCells) {
+        headerCells.forEach(function (cell) {
+          cell.classList.remove('dmx-dt-reorder-dragging', 'dmx-dt-reorder-left', 'dmx-dt-reorder-right');
+        });
+      }
+      if (dragGhost && dragGhost.parentNode) {
+        dragGhost.parentNode.removeChild(dragGhost);
+      }
+      dragGhost = null;
+      dragSrcIndex = null;
+      headerCells = null;
+    }
+
+    // Make header cells draggable
+    getHeaderCells().forEach(function (th) {
+      th.setAttribute('draggable', 'true');
+      th.style.cursor = 'grab';
+    });
+
+    headerRow.addEventListener('dragstart', onDragStart);
+    headerRow.addEventListener('dragover', onDragOver);
+    headerRow.addEventListener('dragleave', onDragLeave);
+    headerRow.addEventListener('drop', onDrop);
+    headerRow.addEventListener('dragend', onDragEnd);
+
+    // Store cleanup function
+    this._reorderCleanup = function () {
+      headerRow.removeEventListener('dragstart', onDragStart);
+      headerRow.removeEventListener('dragover', onDragOver);
+      headerRow.removeEventListener('dragleave', onDragLeave);
+      headerRow.removeEventListener('drop', onDrop);
+      headerRow.removeEventListener('dragend', onDragEnd);
+      getHeaderCells().forEach(function (th) {
+        th.removeAttribute('draggable');
+        th.style.cursor = '';
+      });
+    };
+  },
+
+  _reorderColumns: function (fromIndex, toIndex) {
+    if (!this._tableInstance) return;
+
+    var api = this._tableInstance;
+    var colCount = api.columns()[0].length;
+
+    // Build the new order array
+    var order = [];
+    for (var i = 0; i < colCount; i++) order.push(i);
+
+    // Move fromIndex to toIndex
+    var moved = order.splice(fromIndex, 1)[0];
+    order.splice(toIndex, 0, moved);
+
+    // Save order to localStorage
+    this._saveColumnOrder(order);
+
+    // Rebuild the table with new column order
+    this._createTable();
   }
 });
