@@ -1,4 +1,45 @@
-/* Minimal styles for the rebuilt Wappler DataTable component */
+/* Wappler DataTable component — Paces-inspired theme-adaptive styles */
+
+/* ── Theme-adaptive CSS variables ── */
+div.dt-container {
+  --dmx-dt-border: var(--bs-border-color, rgba(0, 0, 0, 0.125));
+  --dmx-dt-bg-subtle: var(--bs-light-bg-subtle, rgba(0, 0, 0, 0.03));
+  --dmx-dt-text: var(--bs-body-color, inherit);
+  --dmx-dt-text-muted: var(--bs-secondary-color, rgba(0, 0, 0, 0.55));
+  --dmx-dt-accent: var(--bs-primary, rgb(13, 110, 253));
+  --dmx-dt-accent-bg: var(--bs-primary-bg-subtle, rgba(13, 110, 253, 0.1));
+  --dmx-dt-popup-bg: var(--bs-body-bg, #fff);
+  --dmx-dt-popup-shadow: rgba(0, 0, 0, 0.08);
+  --dmx-dt-input-bg: var(--bs-light-bg-subtle, #f8f9fa);
+  --dmx-dt-input-border: var(--bs-border-color-translucent, rgba(0, 0, 0, 0.1));
+
+  font-family: var(--bs-body-font-family, inherit);
+  font-size: 0.8125rem;
+  color: var(--dmx-dt-text);
+}
+
+/* ── Table base ── */
+
+div.dt-container table.dataTable {
+  margin-bottom: 0 !important;
+}
+
+div.dt-container table.dataTable thead th {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--dmx-dt-text-muted);
+  white-space: nowrap;
+  border-bottom-width: 1px;
+}
+
+div.dt-container table.dataTable tbody td {
+  vertical-align: middle;
+  font-size: 0.8125rem;
+}
+
+/* ── Actions ── */
 
 .dmx-dt-action-wrap {
   display: flex;
@@ -17,63 +58,140 @@ th.dt-nowrap {
   white-space: nowrap;
 }
 
+/* ── Column search shared ── */
+
 .dmx-dt-col-search {
   width: 100%;
   box-sizing: border-box;
-  font-size: 0.85em;
+  font-size: 0.8125rem;
+  padding: 0.35rem 0.65rem;
+  background-color: var(--dmx-dt-input-bg);
+  border: 1px solid var(--dmx-dt-input-border);
+  border-radius: 0.25rem;
+  color: var(--dmx-dt-text);
+  transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+}
+
+.dmx-dt-col-search:focus {
+  background-color: var(--dmx-dt-popup-bg);
+  border-color: var(--dmx-dt-accent);
+  box-shadow: 0 0 0 0.2rem var(--dmx-dt-accent-bg);
+  outline: 0;
+}
+
+div.dt-container tfoot th {
   padding: 4px 8px;
 }
 
-tfoot th {
-  padding: 4px 8px;
+/* ── Column search row (Paces-style) ── */
+
+.dmx-dt-col-search-row th {
+  padding: 6px 10px;
+  background-color: transparent;
+  border-top: none;
+  border-bottom: 1px solid var(--dmx-dt-border);
+  font-weight: normal;
 }
 
-/* Column header with filter icon */
+.dmx-dt-col-search-cell {
+  vertical-align: middle;
+}
+
+/* Paces-style: subtle bg, light border, small size */
+.dmx-dt-inline-search {
+  width: 100%;
+  box-sizing: border-box;
+  font-size: 0.8125rem;
+  padding: 0.35rem 0.65rem;
+  background-color: var(--dmx-dt-input-bg);
+  border: 1px solid var(--dmx-dt-input-border);
+  border-radius: 0.25rem;
+  color: var(--dmx-dt-text);
+  transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+}
+
+.dmx-dt-inline-search:focus {
+  background-color: var(--dmx-dt-popup-bg);
+  border-color: var(--dmx-dt-accent);
+  box-shadow: 0 0 0 0.2rem var(--dmx-dt-accent-bg);
+  outline: 0;
+}
+
+.dmx-dt-inline-search::placeholder {
+  color: var(--dmx-dt-text-muted);
+  opacity: 0.6;
+}
+
+.dmx-dt-inline-number,
+.dmx-dt-inline-date,
+.dmx-dt-inline-text {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.dmx-dt-inline-join {
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-align: center;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--dmx-dt-text-muted);
+}
+
+/* ── Column header with filter icon ── */
+
 th .dmx-dt-header-content {
   display: inline;
+}
+
+.dmx-dt-filter-icon svg {
+  pointer-events: none;
 }
 
 .dmx-dt-filter-icon {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 22px;
-  height: 22px;
-  margin-left: 6px;
+  width: 20px;
+  height: 20px;
+  margin-left: 4px;
   padding: 2px;
-  border-radius: 4px;
+  border-radius: 0.25rem;
   cursor: pointer;
-  opacity: 0.4;
+  opacity: 0.35;
   vertical-align: middle;
   transition: opacity 0.15s, background-color 0.15s;
   position: relative;
 }
 
 .dmx-dt-filter-icon:hover {
-  opacity: 0.8;
-  background-color: rgba(0, 0, 0, 0.08);
+  opacity: 0.75;
+  background-color: var(--dmx-dt-accent-bg);
 }
 
 .dmx-dt-filter-icon.dmx-dt-filter-active {
   opacity: 1;
-  color: #0d6efd;
-  background-color: rgba(13, 110, 253, 0.1);
+  color: var(--dmx-dt-accent);
+  background-color: var(--dmx-dt-accent-bg);
 }
 
-/* Floating filter popup */
+/* ── Floating filter popup ── */
+
 .dmx-dt-filter-popup {
   display: none;
   position: absolute;
   z-index: 10000;
   min-width: 220px;
   max-width: 320px;
-  background: #fff;
-  border: 1px solid #dee2e6;
-  border-radius: 6px;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
-  font-size: 0.875rem;
+  background: var(--dmx-dt-popup-bg);
+  border: 1px solid var(--dmx-dt-border);
+  border-radius: 0.5rem;
+  box-shadow: 0 0.5rem 1rem var(--dmx-dt-popup-shadow);
+  font-size: 0.8125rem;
   font-weight: normal;
   text-align: left;
+  color: var(--dmx-dt-text);
 }
 
 .dmx-dt-filter-popup-open {
@@ -85,26 +203,28 @@ th .dmx-dt-header-content {
   align-items: center;
   justify-content: space-between;
   padding: 8px 12px;
-  border-bottom: 1px solid #e9ecef;
+  border-bottom: 1px solid var(--dmx-dt-border);
   font-weight: 600;
-  font-size: 0.8rem;
-  color: #495057;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--dmx-dt-text-muted);
 }
 
 .dmx-dt-filter-clear-btn {
   background: none;
-  border: 1px solid #dee2e6;
-  border-radius: 4px;
+  border: 1px solid var(--dmx-dt-border);
+  border-radius: 0.25rem;
   padding: 2px 10px;
-  font-size: 0.75rem;
-  color: #6c757d;
+  font-size: 0.7rem;
+  color: var(--dmx-dt-text-muted);
   cursor: pointer;
   transition: background-color 0.15s, color 0.15s;
 }
 
 .dmx-dt-filter-clear-btn:hover {
-  background-color: #f8f9fa;
-  color: #212529;
+  background-color: var(--dmx-dt-bg-subtle);
+  color: var(--dmx-dt-text);
 }
 
 .dmx-dt-filter-popup-body {
@@ -115,21 +235,34 @@ th .dmx-dt-header-content {
 .dmx-dt-filter-popup-body select {
   width: 100%;
   box-sizing: border-box;
+  font-size: 0.8125rem;
+  padding: 0.35rem 0.65rem;
+  background-color: var(--dmx-dt-input-bg);
+  border: 1px solid var(--dmx-dt-input-border);
+  border-radius: 0.25rem;
+  color: var(--dmx-dt-text);
+  transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
 }
 
-/* Text condition filter (AG Grid style) */
+.dmx-dt-filter-popup-body input:focus,
+.dmx-dt-filter-popup-body select:focus {
+  background-color: var(--dmx-dt-popup-bg);
+  border-color: var(--dmx-dt-accent);
+  box-shadow: 0 0 0 0.2rem var(--dmx-dt-accent-bg);
+  outline: 0;
+}
+
+/* ── Text condition filter ── */
+
 .dmx-dt-text-condition {
   display: flex;
   flex-direction: column;
   gap: 6px;
 }
 
-.dmx-dt-text-condition .dmx-dt-text-op {
-  font-size: 0.8rem;
-}
-
+.dmx-dt-text-condition .dmx-dt-text-op,
 .dmx-dt-text-condition .dmx-dt-text-val {
-  font-size: 0.8rem;
+  font-size: 0.8125rem;
 }
 
 .dmx-dt-text-join {
@@ -137,8 +270,8 @@ th .dmx-dt-header-content {
   align-items: center;
   gap: 4px;
   padding: 6px 0;
-  border-top: 1px solid #e9ecef;
-  border-bottom: 1px solid #e9ecef;
+  border-top: 1px solid var(--dmx-dt-border);
+  border-bottom: 1px solid var(--dmx-dt-border);
   margin: 6px 0;
 }
 
@@ -149,15 +282,18 @@ th .dmx-dt-header-content {
 }
 
 .dmx-dt-join-label {
-  font-size: 0.75rem;
+  font-size: 0.7rem;
   font-weight: 600;
-  color: #495057;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--dmx-dt-text-muted);
   margin-right: 10px;
   cursor: pointer;
   user-select: none;
 }
 
-/* Date range search */
+/* ── Date range search ── */
+
 .dmx-dt-col-search-date {
   display: flex;
   flex-direction: column;
@@ -165,11 +301,12 @@ th .dmx-dt-header-content {
 }
 
 .dmx-dt-col-search-date input[type="date"] {
-  font-size: 0.8em;
-  padding: 2px 4px;
+  font-size: 0.8125rem;
+  padding: 0.35rem 0.65rem;
 }
 
-/* Number search */
+/* ── Number search ── */
+
 .dmx-dt-col-search-number {
   display: flex;
   flex-direction: column;
@@ -177,16 +314,30 @@ th .dmx-dt-header-content {
 }
 
 .dmx-dt-col-search-number select.dmx-dt-num-op {
-  font-size: 0.8em;
-  padding: 2px 4px;
+  font-size: 0.8125rem;
+  padding: 0.35rem 0.65rem;
 }
 
 .dmx-dt-col-search-number input[type="number"] {
-  font-size: 0.8em;
-  padding: 2px 4px;
+  font-size: 0.8125rem;
+  padding: 0.35rem 0.65rem;
 }
 
-/* Column Reorder */
+/* ── Footer row ── */
+
+.dmx-dt-footer-row th {
+  font-weight: 600;
+  font-size: 0.8125rem;
+  background-color: var(--dmx-dt-bg-subtle);
+  border-top: 2px solid var(--dmx-dt-border);
+}
+
+.dmx-dt-footer-value {
+  text-align: right;
+}
+
+/* ── Column Reorder — Drag & Drop ── */
+
 th[draggable="true"] {
   user-select: none;
   -webkit-user-select: none;
@@ -197,11 +348,11 @@ th[draggable="true"] {
 }
 
 .dmx-dt-reorder-left {
-  border-left: 3px solid #0d6efd !important;
+  border-left: 3px solid var(--dmx-dt-accent) !important;
 }
 
 .dmx-dt-reorder-right {
-  border-right: 3px solid #0d6efd !important;
+  border-right: 3px solid var(--dmx-dt-accent) !important;
 }
 
 .dmx-dt-reorder-ghost {
@@ -209,9 +360,9 @@ th[draggable="true"] {
   top: -9999px;
   left: -9999px;
   padding: 6px 14px;
-  background: #0d6efd;
+  background: var(--dmx-dt-accent);
   color: #fff;
-  border-radius: 4px;
+  border-radius: 0.25rem;
   font-size: 0.8rem;
   font-weight: 600;
   white-space: nowrap;
@@ -219,12 +370,290 @@ th[draggable="true"] {
   z-index: 99999;
 }
 
+/* ── DT2 Layout spacing ── */
+
+div.dt-container .dt-layout-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem 0;
+}
+
+div.dt-container .dt-layout-row:first-child {
+  padding-top: 0;
+  padding-bottom: 0.75rem;
+}
+
+div.dt-container .dt-layout-row:last-child {
+  border-top: 1px solid var(--dmx-dt-border);
+  padding-top: 0.75rem;
+  padding-bottom: 0;
+}
+
+div.dt-container .dt-layout-table {
+  padding: 0;
+}
+
+/* Align items vertically in layout cells */
+div.dt-container .dt-layout-start,
+div.dt-container .dt-layout-end {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+div.dt-container .dt-layout-end {
+  justify-content: flex-end;
+}
+
+/* ── Export dropdown button ── */
+
+div.dt-container .dt-buttons {
+  display: inline-flex;
+  position: relative;
+}
+
+div.dt-container .dt-buttons .dmx-dt-export-btn.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.4rem 0.85rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  line-height: 1.5;
+  border: 1px solid transparent;
+  border-radius: 0.25rem;
+  background-color: var(--dmx-dt-accent);
+  color: #fff;
+  cursor: pointer;
+  transition: background-color 0.15s, border-color 0.15s, box-shadow 0.15s, opacity 0.15s;
+  white-space: nowrap;
+}
+
+div.dt-container .dt-buttons .dmx-dt-export-btn.btn:hover {
+  background-color: var(--dmx-dt-accent);
+  opacity: 0.88;
+  color: #fff;
+}
+
+div.dt-container .dt-buttons .dmx-dt-export-btn.btn:active,
+div.dt-container .dt-buttons .dmx-dt-export-btn.btn:focus {
+  background-color: var(--dmx-dt-accent);
+  opacity: 0.8;
+  outline: 0;
+  box-shadow: 0 0 0 0.2rem var(--dmx-dt-accent-bg);
+  color: #fff;
+}
+
+div.dt-container .dt-buttons .dmx-dt-export-btn svg {
+  flex-shrink: 0;
+}
+
+/* Export dropdown menu (DataTables collection rendered as .dropdown-menu) */
+div.dropdown-menu.dt-button-collection {
+  background: var(--dmx-dt-popup-bg, var(--bs-dropdown-bg, #fff));
+  border: 1px solid var(--dmx-dt-border, var(--bs-dropdown-border-color, rgba(0,0,0,.15)));
+  border-radius: 0.375rem;
+  box-shadow: 0 0.5rem 1rem var(--dmx-dt-popup-shadow, rgba(0,0,0,.08));
+  padding: 0.25rem 0;
+  min-width: 10rem;
+}
+
+div.dropdown-menu.dt-button-collection .dt-button {
+  display: block;
+  width: 100%;
+  padding: 0.4rem 1rem;
+  font-size: 0.8125rem;
+  font-weight: 400;
+  color: var(--dmx-dt-text, var(--bs-dropdown-link-color, inherit));
+  background: none;
+  border: none;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 0.1s, color 0.1s;
+  white-space: nowrap;
+}
+
+div.dropdown-menu.dt-button-collection .dt-button:hover {
+  background-color: var(--dmx-dt-bg-subtle, var(--bs-dropdown-link-hover-bg, rgba(0,0,0,.03)));
+  color: var(--dmx-dt-text);
+}
+
+div.dropdown-menu.dt-button-collection .dt-button:active {
+  background-color: var(--dmx-dt-accent-bg);
+  color: var(--dmx-dt-accent);
+}
+
+/* Hide the default collection background overlay */
+div.dt-button-background {
+  display: none !important;
+}
+
+/* ── Page length & labels ── */
+
+div.dt-container .dt-length {
+  font-size: 0.8125rem;
+  color: var(--dmx-dt-text-muted);
+}
+
+div.dt-container .dt-length label {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0;
+  font-weight: normal;
+  white-space: nowrap;
+}
+
+div.dt-container .dt-length select {
+  display: inline-block;
+  width: auto;
+  padding: 0.35rem 2rem 0.35rem 0.65rem;
+  font-size: 0.8125rem;
+  border: 1px solid var(--dmx-dt-input-border);
+  border-radius: 0.25rem;
+  background-color: var(--dmx-dt-input-bg);
+  color: var(--dmx-dt-text);
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+div.dt-container .dt-length select:focus {
+  border-color: var(--dmx-dt-accent);
+  box-shadow: 0 0 0 0.2rem var(--dmx-dt-accent-bg);
+  outline: 0;
+}
+
+/* ── Global search input ── */
+
+div.dt-container .dt-search {
+  font-size: 0.8125rem;
+  color: var(--dmx-dt-text-muted);
+}
+
+div.dt-container .dt-search label {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0;
+  font-weight: normal;
+  white-space: nowrap;
+}
+
+div.dt-container .dt-search input {
+  display: inline-block;
+  width: auto;
+  min-width: 180px;
+  padding: 0.35rem 0.65rem;
+  font-size: 0.8125rem;
+  border: 1px solid var(--dmx-dt-input-border);
+  border-radius: 0.25rem;
+  background-color: var(--dmx-dt-input-bg);
+  color: var(--dmx-dt-text);
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+div.dt-container .dt-search input:focus {
+  background-color: var(--dmx-dt-popup-bg);
+  border-color: var(--dmx-dt-accent);
+  box-shadow: 0 0 0 0.2rem var(--dmx-dt-accent-bg);
+  outline: 0;
+}
+
+div.dt-container .dt-search input::placeholder {
+  color: var(--dmx-dt-text-muted);
+  opacity: 0.6;
+}
+
+/* ── Pagination ── */
+
+div.dt-container .dt-paging .pagination {
+  margin: 0;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+  list-style: none;
+  padding: 0;
+}
+
+div.dt-container .dt-paging .pagination .page-item .page-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 2.1rem;
+  height: 2.1rem;
+  padding: 0;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  line-height: 1;
+  border: 1px solid var(--dmx-dt-border);
+  border-radius: 50%;
+  color: var(--dmx-dt-text-muted);
+  background-color: var(--dmx-dt-popup-bg);
+  text-decoration: none;
+  transition: background-color 0.15s, border-color 0.15s, color 0.15s, box-shadow 0.15s;
+}
+
+div.dt-container .dt-paging .pagination .page-item .page-link svg {
+  display: block;
+  width: 14px;
+  height: 14px;
+}
+
+div.dt-container .dt-paging .pagination .page-item .page-link:hover {
+  background-color: var(--dmx-dt-bg-subtle);
+  border-color: var(--dmx-dt-border);
+  color: var(--dmx-dt-accent);
+}
+
+div.dt-container .dt-paging .pagination .page-item.active .page-link {
+  background-color: var(--dmx-dt-accent);
+  border-color: var(--dmx-dt-accent);
+  color: #fff;
+  box-shadow: 0 2px 6px var(--dmx-dt-accent-bg);
+}
+
+div.dt-container .dt-paging .pagination .page-item.disabled .page-link {
+  color: var(--dmx-dt-text-muted);
+  background-color: var(--dmx-dt-popup-bg);
+  border-color: var(--dmx-dt-border);
+  pointer-events: none;
+  opacity: 0.5;
+}
+
+/* ── Info text ── */
+
+div.dt-container .dt-info {
+  font-size: 0.8125rem;
+  color: var(--dmx-dt-text-muted);
+  padding-top: 0.25rem;
+}
+
+/* ── Processing indicator ── */
+
+div.dt-container .dt-processing {
+  font-size: 0.8125rem;
+}
+
+/* ── Responsive ── */
+
 @media (max-width: 768px) {
-  .dataTables_wrapper .dataTables_length,
-  .dataTables_wrapper .dataTables_filter,
-  .dataTables_wrapper .dataTables_info,
-  .dataTables_wrapper .dataTables_paginate {
+  div.dt-container .dt-layout-row {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  div.dt-container .dt-layout-start,
+  div.dt-container .dt-layout-end {
+    justify-content: center;
     width: 100%;
-    text-align: center;
+  }
+
+  div.dt-container .dt-paging .pagination {
+    justify-content: center;
+  }
+
+  div.dt-container .dt-search input {
+    min-width: 0;
+    width: 100%;
   }
 }

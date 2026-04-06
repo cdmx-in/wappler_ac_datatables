@@ -45,6 +45,8 @@ dmx.Component("datatable", {
     actions_column_position: { type: String, default: 'right' },
     action_btns: { type: Array, default: [] },
     enable_column_search: { type: Boolean, default: false },
+    column_search_mode: { type: String, default: 'simple' },
+    column_search_position: { type: String, default: 'row' },
     enable_global_search: { type: Boolean, default: true },
     enable_column_reorder: { type: Boolean, default: false },
     export_options: { type: Array, default: [
@@ -103,6 +105,7 @@ dmx.Component("datatable", {
     this._columnsDetected = false;
     this._loadedTheme = null;
     this._themeElements = [];
+    this._themeVars = null;
     this._reorderCleanup = null;
   },
 
@@ -183,6 +186,8 @@ dmx.Component("datatable", {
       updatedProps.has('table_class') ||
       updatedProps.has('page_size') ||
       updatedProps.has('enable_column_search') ||
+      updatedProps.has('column_search_mode') ||
+      updatedProps.has('column_search_position') ||
       updatedProps.has('enable_global_search') ||
       updatedProps.has('enable_column_reorder')
     ) {
@@ -355,7 +360,82 @@ dmx.Component("datatable", {
       }
     }
 
+    // Set theme-adaptive CSS custom properties
+    this._applyThemeVars(theme);
+
     this._loadedTheme = theme;
+  },
+
+  _applyThemeVars: function (theme) {
+    var vars = {};
+    if (theme === 'bootstrap4') {
+      vars = {
+        '--dmx-dt-border': 'rgba(0, 0, 0, 0.125)',
+        '--dmx-dt-bg-subtle': 'rgba(0, 0, 0, 0.03)',
+        '--dmx-dt-text': 'inherit',
+        '--dmx-dt-text-muted': '#6c757d',
+        '--dmx-dt-accent': '#007bff',
+        '--dmx-dt-accent-bg': 'rgba(0, 123, 255, 0.1)',
+        '--dmx-dt-popup-bg': '#fff',
+        '--dmx-dt-popup-shadow': 'rgba(0, 0, 0, 0.08)',
+        '--dmx-dt-input-bg': '#e9ecef',
+        '--dmx-dt-input-border': 'rgba(0, 0, 0, 0.1)'
+      };
+    } else if (theme === 'dataTables') {
+      vars = {
+        '--dmx-dt-border': '#d0d0d0',
+        '--dmx-dt-bg-subtle': 'rgba(0, 0, 0, 0.02)',
+        '--dmx-dt-text': '#333',
+        '--dmx-dt-text-muted': '#666',
+        '--dmx-dt-accent': '#0d6efd',
+        '--dmx-dt-accent-bg': 'rgba(13, 110, 253, 0.08)',
+        '--dmx-dt-popup-bg': '#fff',
+        '--dmx-dt-popup-shadow': 'rgba(0, 0, 0, 0.08)',
+        '--dmx-dt-input-bg': '#f5f5f5',
+        '--dmx-dt-input-border': '#d0d0d0'
+      };
+    } else {
+      // bootstrap5 defaults — already set in CSS, but apply explicitly for popups
+      vars = {
+        '--dmx-dt-border': 'rgba(0, 0, 0, 0.125)',
+        '--dmx-dt-bg-subtle': 'rgba(0, 0, 0, 0.03)',
+        '--dmx-dt-text': 'inherit',
+        '--dmx-dt-text-muted': 'rgba(0, 0, 0, 0.55)',
+        '--dmx-dt-accent': 'rgb(13, 110, 253)',
+        '--dmx-dt-accent-bg': 'rgba(13, 110, 253, 0.1)',
+        '--dmx-dt-popup-bg': '#fff',
+        '--dmx-dt-popup-shadow': 'rgba(0, 0, 0, 0.08)',
+        '--dmx-dt-input-bg': '#f8f9fa',
+        '--dmx-dt-input-border': 'rgba(0, 0, 0, 0.1)'
+      };
+    }
+
+    // Apply to the wrapper element so scoped styles pick them up
+    var wrapper = this._tableEl ? this._tableEl.closest('.dt-container') : null;
+    if (wrapper) {
+      for (var key in vars) {
+        wrapper.style.setProperty(key, vars[key]);
+      }
+    }
+
+    // Also apply to any popups belonging to this instance (they live on document.body)
+    var popups = document.querySelectorAll('.dmx-dt-filter-popup[data-dmx-dt-id="' + (this.props.id || '') + '"]');
+    popups.forEach(function (popup) {
+      for (var key in vars) {
+        popup.style.setProperty(key, vars[key]);
+      }
+    });
+
+    // Store vars for applying to popups created later
+    this._themeVars = vars;
+  },
+
+  _applyThemeVarsToPopup: function (popup) {
+    if (!this._themeVars) return;
+    var vars = this._themeVars;
+    for (var key in vars) {
+      popup.style.setProperty(key, vars[key]);
+    }
   },
 
   _detectSearchType: function (key, rows) {
@@ -466,6 +546,7 @@ dmx.Component("datatable", {
         if (override) {
           if (override.searchable === false || override.searchable === 'false') col.searchable = false;
           if (override.orderable === false || override.orderable === 'false') col.orderable = false;
+          if (override.footer_value != null && override.footer_value !== '') col.footerValue = override.footer_value;
         }
         cols.push(col);
       });
@@ -503,6 +584,7 @@ dmx.Component("datatable", {
       };
       if (h.searchable === false || h.searchable === 'false') col.searchable = false;
       if (h.orderable === false || h.orderable === 'false') col.orderable = false;
+      if (h.footer_value != null && h.footer_value !== '') col.footerValue = h.footer_value;
       cols.push(col);
     });
     this._searchTypesDetected = rows.length > 0;
@@ -565,16 +647,25 @@ dmx.Component("datatable", {
 
   _getExportButtons: function () {
     var opts = Array.isArray(this.props.export_options) ? this.props.export_options : [];
-    var buttons = [];
+    var childButtons = [];
 
     opts.forEach(function (opt) {
       if (!opt || opt.enabled === false || opt.enabled === 'false') return;
       var type = String(opt.type || '').toLowerCase();
       if (!type) return;
-      buttons.push({ extend: type, text: opt.title || type.charAt(0).toUpperCase() + type.slice(1) });
+      childButtons.push({ extend: type, text: opt.title || type.charAt(0).toUpperCase() + type.slice(1) });
     });
 
-    return buttons;
+    if (!childButtons.length) return [];
+
+    // Wrap in a collection dropdown (Paces style)
+    return [{
+      extend: 'collection',
+      text: '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="me-1 align-baseline"><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/><path d="M7 11l5 5l5-5"/><path d="M12 4l0 12"/></svg> Export',
+      className: 'dmx-dt-export-btn',
+      autoClose: true,
+      buttons: childButtons
+    }];
   },
 
   _getColumnSearchValues: function (dtColumns) {
@@ -611,12 +702,12 @@ dmx.Component("datatable", {
 
     var fromInput = document.createElement('input');
     fromInput.type = 'datetime-local';
-    fromInput.className = 'dmx-dt-col-search form-control form-control-sm';
+    fromInput.className = 'dmx-dt-col-search';
     fromInput.title = 'From date';
 
     var toInput = document.createElement('input');
     toInput.type = 'datetime-local';
-    toInput.className = 'dmx-dt-col-search form-control form-control-sm';
+    toInput.className = 'dmx-dt-col-search';
     toInput.title = 'To date';
 
     var debounceTimer;
@@ -649,7 +740,7 @@ dmx.Component("datatable", {
     container.className = 'dmx-dt-col-search-number';
 
     var opSelect = document.createElement('select');
-    opSelect.className = 'dmx-dt-col-search form-control form-control-sm dmx-dt-num-op';
+    opSelect.className = 'dmx-dt-col-search dmx-dt-num-op';
     var ops = [
       { value: '', label: 'Any' },
       { value: 'eq', label: '=' },
@@ -668,12 +759,12 @@ dmx.Component("datatable", {
 
     var valInput = document.createElement('input');
     valInput.type = 'number';
-    valInput.className = 'dmx-dt-col-search form-control form-control-sm';
+    valInput.className = 'dmx-dt-col-search';
     valInput.placeholder = 'Value';
 
     var val2Input = document.createElement('input');
     val2Input.type = 'number';
-    val2Input.className = 'dmx-dt-col-search form-control form-control-sm dmx-dt-num-val2';
+    val2Input.className = 'dmx-dt-col-search dmx-dt-num-val2';
     val2Input.placeholder = 'Max';
     val2Input.style.display = 'none';
 
@@ -716,7 +807,7 @@ dmx.Component("datatable", {
     row.className = 'dmx-dt-text-condition';
 
     var opSelect = document.createElement('select');
-    opSelect.className = 'dmx-dt-col-search form-control form-control-sm dmx-dt-text-op';
+    opSelect.className = 'dmx-dt-col-search dmx-dt-text-op';
     var ops = [
       { value: 'contains', label: 'Contains' },
       { value: 'notContains', label: 'Does not contain' },
@@ -736,7 +827,7 @@ dmx.Component("datatable", {
 
     var valInput = document.createElement('input');
     valInput.type = 'text';
-    valInput.className = 'dmx-dt-col-search form-control form-control-sm dmx-dt-text-val';
+    valInput.className = 'dmx-dt-col-search dmx-dt-text-val';
     valInput.placeholder = 'Filter value...';
 
     // Hide input for blank/notBlank
@@ -924,23 +1015,221 @@ dmx.Component("datatable", {
     }
   },
 
+  _setupFooter: function (columns) {
+    // Remove existing tfoot
+    var existingFoot = this._tableEl.querySelector('tfoot');
+    if (existingFoot) existingFoot.parentNode.removeChild(existingFoot);
+
+    // Check if any column has a footer value
+    var hasFooter = columns.some(function (col) {
+      return col.footerValue != null && col.footerValue !== '';
+    });
+    if (!hasFooter) return;
+
+    var tfoot = document.createElement('tfoot');
+    var tr = document.createElement('tr');
+    tr.className = 'dmx-dt-footer-row';
+    columns.forEach(function (col) {
+      var td = document.createElement('th');
+      if (col.footerValue != null && col.footerValue !== '') {
+        td.textContent = col.footerValue;
+        td.className = 'dmx-dt-footer-value';
+      }
+      tr.appendChild(td);
+    });
+    tfoot.appendChild(tr);
+    this._tableEl.appendChild(tfoot);
+  },
+
   _setupColumnSearch: function () {
     if (!this.props.enable_column_search || !this._tableInstance) return;
 
+    var mode = (this.props.column_search_mode || 'simple').toLowerCase();
+    var position = (this.props.column_search_position || 'header').toLowerCase();
+
+    // Clean up any previous column search UI before building new one
+    this._cleanupColumnSearchUI();
+
+    if (mode === 'advanced') {
+      if (position === 'row') {
+        this._setupAdvancedSearchRow();
+      } else {
+        this._setupAdvancedSearchHeader();
+      }
+    } else {
+      // simple mode
+      if (position === 'row') {
+        this._setupSimpleSearchRow();
+      } else {
+        this._setupSimpleSearchHeader();
+      }
+    }
+  },
+
+  _cleanupColumnSearchUI: function () {
+    var thead = this._tableEl ? this._tableEl.querySelector('thead') : null;
+    if (thead) {
+      var existingRow = thead.querySelector('.dmx-dt-col-search-row');
+      if (existingRow) existingRow.parentNode.removeChild(existingRow);
+      var oldIcons = thead.querySelectorAll('.dmx-dt-filter-icon');
+      oldIcons.forEach(function (el) { el.parentNode.removeChild(el); });
+    }
+    var oldPopups = document.querySelectorAll('.dmx-dt-filter-popup[data-dmx-dt-id="' + (this.props.id || '') + '"]');
+    oldPopups.forEach(function (el) { el.parentNode.removeChild(el); });
+  },
+
+  // ── Simple Column Search: Header mode (icon + popup with simple text input) ──
+
+  _setupSimpleSearchHeader: function () {
     var comp = this;
     var api = this._tableInstance;
     var thead = this._tableEl.querySelector('thead');
     if (!thead) return;
 
-    // Remove any previous search row (legacy cleanup)
-    var existingRow = thead.querySelector('.dmx-dt-col-search-row');
-    if (existingRow) existingRow.parentNode.removeChild(existingRow);
+    api.columns().every(function () {
+      var col = this;
+      var headerEl = col.header();
+      var colName = col.dataSrc();
+      var colSettings = api.settings()[0].aoColumns[col.index()];
 
-    // Remove any previous filter icons and popups
-    var oldIcons = thead.querySelectorAll('.dmx-dt-filter-icon');
-    oldIcons.forEach(function (el) { el.parentNode.removeChild(el); });
-    var oldPopups = document.querySelectorAll('.dmx-dt-filter-popup[data-dmx-dt-id="' + (comp.props.id || '') + '"]');
-    oldPopups.forEach(function (el) { el.parentNode.removeChild(el); });
+      if (colName === null || headerEl.textContent === 'Actions' || colSettings.bSearchable === false) {
+        return;
+      }
+
+      // Wrap header text if not already wrapped
+      headerEl.style.position = 'relative';
+      if (!headerEl.querySelector('.dmx-dt-header-content')) {
+        var titleText = headerEl.innerHTML;
+        headerEl.innerHTML = '';
+        var contentSpan = document.createElement('span');
+        contentSpan.className = 'dmx-dt-header-content';
+        contentSpan.innerHTML = titleText;
+        headerEl.appendChild(contentSpan);
+      }
+
+      // Create filter icon button
+      var iconBtn = document.createElement('span');
+      iconBtn.className = 'dmx-dt-filter-icon';
+      iconBtn.title = 'Search ' + (headerEl.querySelector('.dmx-dt-header-content').textContent || '');
+      iconBtn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" width="14" height="14" fill="currentColor"><path d="M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001c.03.04.062.078.098.115l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1.007 1.007 0 0 0-.115-.1zM12 6.5a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0z"/></svg>';
+      headerEl.appendChild(iconBtn);
+
+      // Create floating popup
+      var popup = document.createElement('div');
+      popup.className = 'dmx-dt-filter-popup';
+      popup.setAttribute('data-dmx-dt-id', comp.props.id || '');
+
+      var popupHeader = document.createElement('div');
+      popupHeader.className = 'dmx-dt-filter-popup-header';
+      popupHeader.innerHTML = '<span>Search: ' + comp._escapeAttr(headerEl.querySelector('.dmx-dt-header-content').textContent || '') + '</span>';
+
+      var clearBtn = document.createElement('button');
+      clearBtn.type = 'button';
+      clearBtn.className = 'dmx-dt-filter-clear-btn';
+      clearBtn.textContent = 'Clear';
+      popupHeader.appendChild(clearBtn);
+      popup.appendChild(popupHeader);
+
+      var popupBody = document.createElement('div');
+      popupBody.className = 'dmx-dt-filter-popup-body';
+
+      var input = document.createElement('input');
+      input.type = 'text';
+      input.className = 'dmx-dt-col-search';
+      input.placeholder = 'Type to search...';
+
+      var debounceTimer;
+      input.addEventListener('input', function () {
+        var val = input.value;
+        clearTimeout(debounceTimer);
+        debounceTimer = setTimeout(function () {
+          if (col.search() !== val) col.search(val).draw();
+          comp._updateFilterIconState(iconBtn, !!val);
+        }, 300);
+      });
+      input.addEventListener('click', function (e) { e.stopPropagation(); });
+
+      clearBtn.addEventListener('click', function (e) {
+        e.stopPropagation();
+        input.value = '';
+        col.search('').draw();
+        comp._updateFilterIconState(iconBtn, false);
+        comp._closeActivePopup();
+      });
+
+      popupBody.appendChild(input);
+      popup.appendChild(popupBody);
+      document.body.appendChild(popup);
+      comp._applyThemeVarsToPopup(popup);
+
+      popup.addEventListener('mousedown', function (e) { e.stopPropagation(); });
+      popup.addEventListener('click', function (e) { e.stopPropagation(); });
+
+      iconBtn.addEventListener('click', function (e) {
+        e.stopPropagation();
+        e.preventDefault();
+        if (comp._activeFilterPopup === popup) {
+          comp._closeActivePopup();
+        } else {
+          comp._openFilterPopup(popup, iconBtn);
+        }
+      });
+    });
+  },
+
+  // ── Simple Column Search: Row mode ──
+
+  _setupSimpleSearchRow: function () {
+    var comp = this;
+    var api = this._tableInstance;
+    var thead = this._tableEl.querySelector('thead');
+    if (!thead) return;
+
+    var searchRow = document.createElement('tr');
+    searchRow.className = 'dmx-dt-col-search-row';
+
+    api.columns().every(function () {
+      var col = this;
+      var colName = col.dataSrc();
+      var colSettings = api.settings()[0].aoColumns[col.index()];
+      var th = document.createElement('th');
+      th.className = 'dmx-dt-col-search-cell';
+
+      if (colName === null || col.header().textContent === 'Actions' || colSettings.bSearchable === false) {
+        searchRow.appendChild(th);
+        return;
+      }
+
+      var colTitle = col.header().textContent.trim();
+      var input = document.createElement('input');
+      input.type = 'text';
+      input.className = 'dmx-dt-inline-search';
+      input.placeholder = colTitle;
+
+      var debounceTimer;
+      input.addEventListener('input', function () {
+        var val = input.value;
+        clearTimeout(debounceTimer);
+        debounceTimer = setTimeout(function () {
+          if (col.search() !== val) col.search(val).draw();
+        }, 300);
+      });
+      input.addEventListener('click', function (e) { e.stopPropagation(); });
+
+      th.appendChild(input);
+      searchRow.appendChild(th);
+    });
+
+    thead.appendChild(searchRow);
+  },
+
+  // ── Advanced Column Search: Header (popup) mode ──
+
+  _setupAdvancedSearchHeader: function () {
+    var comp = this;
+    var api = this._tableInstance;
+    var thead = this._tableEl.querySelector('thead');
+    if (!thead) return;
 
     api.columns().every(function () {
       var col = this;
@@ -1018,6 +1307,7 @@ dmx.Component("datatable", {
 
       popup.appendChild(popupBody);
       document.body.appendChild(popup);
+      comp._applyThemeVarsToPopup(popup);
 
       // Stop propagation within popup to prevent DataTables sorting
       popup.addEventListener('mousedown', function (e) { e.stopPropagation(); });
@@ -1052,6 +1342,276 @@ dmx.Component("datatable", {
         });
       }
     });
+  },
+
+  // ── Advanced Column Search: Row (inline) mode ──
+
+  _setupAdvancedSearchRow: function () {
+    var comp = this;
+    var api = this._tableInstance;
+    var thead = this._tableEl.querySelector('thead');
+    if (!thead) return;
+
+    var searchRow = document.createElement('tr');
+    searchRow.className = 'dmx-dt-col-search-row';
+
+    api.columns().every(function () {
+      var col = this;
+      var colName = col.dataSrc();
+      var colSettings = api.settings()[0].aoColumns[col.index()];
+      var th = document.createElement('th');
+      th.className = 'dmx-dt-col-search-cell';
+
+      if (colName === null || col.header().textContent === 'Actions' || colSettings.bSearchable === false) {
+        searchRow.appendChild(th);
+        return;
+      }
+
+      var searchType = comp._getSearchTypeForColumn(colSettings.sName || colName);
+
+      if (searchType === 'date') {
+        comp._buildInlineDateSearch(col, th);
+      } else if (searchType === 'number') {
+        comp._buildInlineNumberSearch(col, th);
+      } else {
+        comp._buildInlineTextSearch(col, th);
+      }
+
+      searchRow.appendChild(th);
+    });
+
+    thead.appendChild(searchRow);
+  },
+
+  _buildInlineTextSearch: function (col, th) {
+    var comp = this;
+    var container = document.createElement('div');
+    container.className = 'dmx-dt-inline-text';
+
+    // Condition 1
+    var opSelect1 = document.createElement('select');
+    opSelect1.className = 'dmx-dt-inline-search';
+    var ops = [
+      { value: 'contains', label: 'Contains' },
+      { value: 'notContains', label: 'Not contains' },
+      { value: 'equals', label: 'Equals' },
+      { value: 'notEquals', label: 'Not equals' },
+      { value: 'startsWith', label: 'Starts with' },
+      { value: 'endsWith', label: 'Ends with' },
+      { value: 'blank', label: 'Is blank' },
+      { value: 'notBlank', label: 'Is not blank' }
+    ];
+    ops.forEach(function (o) {
+      var opt = document.createElement('option');
+      opt.value = o.value;
+      opt.textContent = o.label;
+      opSelect1.appendChild(opt);
+    });
+
+    var valInput1 = document.createElement('input');
+    valInput1.type = 'text';
+    valInput1.className = 'dmx-dt-inline-search';
+    valInput1.placeholder = 'Value...';
+
+    opSelect1.addEventListener('change', function () {
+      var isBlankOp = this.value === 'blank' || this.value === 'notBlank';
+      valInput1.style.display = isBlankOp ? 'none' : '';
+      if (isBlankOp) valInput1.value = '';
+      triggerSearch();
+    });
+
+    // AND/OR selector
+    var joinSelect = document.createElement('select');
+    joinSelect.className = 'dmx-dt-inline-search dmx-dt-inline-join';
+    joinSelect.style.display = 'none';
+    var joinAnd = document.createElement('option');
+    joinAnd.value = 'and'; joinAnd.textContent = 'AND';
+    var joinOr = document.createElement('option');
+    joinOr.value = 'or'; joinOr.textContent = 'OR';
+    joinSelect.appendChild(joinAnd);
+    joinSelect.appendChild(joinOr);
+
+    // Condition 2
+    var opSelect2 = document.createElement('select');
+    opSelect2.className = 'dmx-dt-inline-search';
+    opSelect2.style.display = 'none';
+    ops.forEach(function (o) {
+      var opt = document.createElement('option');
+      opt.value = o.value;
+      opt.textContent = o.label;
+      opSelect2.appendChild(opt);
+    });
+
+    var valInput2 = document.createElement('input');
+    valInput2.type = 'text';
+    valInput2.className = 'dmx-dt-inline-search';
+    valInput2.placeholder = 'Value...';
+    valInput2.style.display = 'none';
+
+    opSelect2.addEventListener('change', function () {
+      var isBlankOp = this.value === 'blank' || this.value === 'notBlank';
+      valInput2.style.display = isBlankOp ? 'none' : '';
+      if (isBlankOp) valInput2.value = '';
+      triggerSearch();
+    });
+
+    var debounceTimer;
+    function triggerSearch() {
+      var op1 = opSelect1.value;
+      var v1 = valInput1.value;
+      var hasCond1 = (op1 === 'blank' || op1 === 'notBlank') || v1.trim() !== '';
+
+      // Show/hide second condition
+      if (hasCond1) {
+        joinSelect.style.display = '';
+        opSelect2.style.display = '';
+        var isBlank2 = opSelect2.value === 'blank' || opSelect2.value === 'notBlank';
+        valInput2.style.display = isBlank2 ? 'none' : '';
+      } else {
+        joinSelect.style.display = 'none';
+        opSelect2.style.display = 'none';
+        valInput2.style.display = 'none';
+      }
+
+      var op2 = opSelect2.value;
+      var v2 = valInput2.value;
+      var join = joinSelect.value;
+      var hasCond2 = (op2 === 'blank' || op2 === 'notBlank') || v2.trim() !== '';
+
+      var parts = [];
+      if (hasCond1) parts.push('txt:' + op1 + ':' + v1);
+      if (hasCond1 && hasCond2) {
+        parts.push(join);
+        parts.push('txt:' + op2 + ':' + v2);
+      }
+
+      var val = parts.join('|');
+      clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(function () {
+        if (col.search() !== val) col.search(val).draw();
+      }, 300);
+    }
+
+    valInput1.addEventListener('input', triggerSearch);
+    opSelect1.addEventListener('change', triggerSearch);
+    valInput2.addEventListener('input', triggerSearch);
+    joinSelect.addEventListener('change', triggerSearch);
+
+    [opSelect1, valInput1, joinSelect, opSelect2, valInput2].forEach(function (el) {
+      el.addEventListener('click', function (e) { e.stopPropagation(); });
+    });
+
+    container.appendChild(opSelect1);
+    container.appendChild(valInput1);
+    container.appendChild(joinSelect);
+    container.appendChild(opSelect2);
+    container.appendChild(valInput2);
+    th.appendChild(container);
+  },
+
+  _buildInlineNumberSearch: function (col, th) {
+    var container = document.createElement('div');
+    container.className = 'dmx-dt-inline-number';
+
+    var opSelect = document.createElement('select');
+    opSelect.className = 'dmx-dt-inline-search';
+    var ops = [
+      { value: '', label: 'Any' },
+      { value: 'eq', label: '=' },
+      { value: 'gt', label: '>' },
+      { value: 'gte', label: '>=' },
+      { value: 'lt', label: '<' },
+      { value: 'lte', label: '<=' },
+      { value: 'between', label: 'Between' }
+    ];
+    ops.forEach(function (o) {
+      var opt = document.createElement('option');
+      opt.value = o.value;
+      opt.textContent = o.label;
+      opSelect.appendChild(opt);
+    });
+
+    var valInput = document.createElement('input');
+    valInput.type = 'number';
+    valInput.className = 'dmx-dt-inline-search';
+    valInput.placeholder = 'Value';
+
+    var val2Input = document.createElement('input');
+    val2Input.type = 'number';
+    val2Input.className = 'dmx-dt-inline-search';
+    val2Input.placeholder = 'Max';
+    val2Input.style.display = 'none';
+
+    opSelect.addEventListener('change', function () {
+      val2Input.style.display = this.value === 'between' ? '' : 'none';
+      if (this.value !== 'between') val2Input.value = '';
+      triggerSearch();
+    });
+
+    var debounceTimer;
+    function triggerSearch() {
+      var op = opSelect.value;
+      var v1 = valInput.value;
+      var v2 = val2Input.value;
+      var val = '';
+      if (op && v1 !== '') {
+        val = op + ':' + v1;
+        if (op === 'between' && v2 !== '') val += ':' + v2;
+      }
+      clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(function () {
+        if (col.search() !== val) col.search(val).draw();
+      }, 300);
+    }
+
+    valInput.addEventListener('input', triggerSearch);
+    val2Input.addEventListener('input', triggerSearch);
+    opSelect.addEventListener('click', function (e) { e.stopPropagation(); });
+    valInput.addEventListener('click', function (e) { e.stopPropagation(); });
+    val2Input.addEventListener('click', function (e) { e.stopPropagation(); });
+
+    container.appendChild(opSelect);
+    container.appendChild(valInput);
+    container.appendChild(val2Input);
+    th.appendChild(container);
+  },
+
+  _buildInlineDateSearch: function (col, th) {
+    var container = document.createElement('div');
+    container.className = 'dmx-dt-inline-date';
+
+    var fromInput = document.createElement('input');
+    fromInput.type = 'datetime-local';
+    fromInput.className = 'dmx-dt-inline-search';
+    fromInput.title = 'From';
+
+    var toInput = document.createElement('input');
+    toInput.type = 'datetime-local';
+    toInput.className = 'dmx-dt-inline-search';
+    toInput.title = 'To';
+
+    var debounceTimer;
+    function onDateChange() {
+      var from = fromInput.value || '';
+      var to = toInput.value || '';
+      var val = '';
+      if (from && to) val = from + '|' + to;
+      else if (from) val = from + '|';
+      else if (to) val = '|' + to;
+      clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(function () {
+        if (col.search() !== val) col.search(val).draw();
+      }, 300);
+    }
+
+    fromInput.addEventListener('change', onDateChange);
+    toInput.addEventListener('change', onDateChange);
+    fromInput.addEventListener('click', function (e) { e.stopPropagation(); });
+    toInput.addEventListener('click', function (e) { e.stopPropagation(); });
+
+    container.appendChild(fromInput);
+    container.appendChild(toInput);
+    th.appendChild(container);
   },
 
   _createTable: function () {
@@ -1091,7 +1651,7 @@ dmx.Component("datatable", {
       }
     }
 
-    this._tableEl.className = this.props.table_class || 'table table-striped table-bordered table-hover';
+    this._tableEl.className = this.props.table_class || 'table table-striped table-bordered table-hover align-middle';
 
     var exportButtons = this._getExportButtons();
 
@@ -1106,17 +1666,46 @@ dmx.Component("datatable", {
       serverSide: true,
       processing: true,
       destroy: true,
-      deferRender: true
+      deferRender: true,
+      language: {
+        lengthMenu: '_MENU_ entries per page',
+        search: 'Search:',
+        info: 'Showing _START_ to _END_ of _TOTAL_ entries',
+        infoEmpty: 'Showing 0 to 0 of 0 entries',
+        infoFiltered: '(filtered from _MAX_ total entries)',
+        paginate: {
+          first: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 7l-5 5l5 5"/><path d="M17 7l-5 5l5 5"/></svg>',
+          previous: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6l6 6"/></svg>',
+          next: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6l-6 6"/></svg>',
+          last: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 7l5 5l-5 5"/><path d="M13 7l5 5l-5 5"/></svg>'
+        }
+      }
     };
 
     if (!this.props.enable_global_search && !this.props.enable_column_search) {
       options.searching = false;
     }
 
+    // Build DT2 layout for proper Bootstrap grid structure
+    var layoutConfig = {
+      bottomStart: 'info',
+      bottomEnd: 'paging'
+    };
+
     if (exportButtons.length) {
-      options.dom = 'Bfrtip';
+      layoutConfig.topStart = ['buttons', 'pageLength'];
       options.buttons = exportButtons;
+    } else {
+      layoutConfig.topStart = 'pageLength';
     }
+
+    if (this.props.enable_global_search) {
+      layoutConfig.topEnd = 'search';
+    } else {
+      layoutConfig.topEnd = null;
+    }
+
+    options.layout = layoutConfig;
 
     options.ajax = function (dtRequest, callback) {
       var order = (dtRequest.order || [])[0] || {};
@@ -1205,20 +1794,14 @@ dmx.Component("datatable", {
 
     this._tableInstance = new DataTable(this._tableEl, options);
 
+    // Add footer row after DataTables init so it aligns with the final column order
+    this._setupFooter(options.columns);
+
     if (this.props.enable_column_reorder) {
       this._setupColumnReorder();
     }
 
     this._setupColumnSearch();
-
-    // Hide global search box when disabled but column search is still active
-    if (!this.props.enable_global_search && this.props.enable_column_search) {
-      var wrapper = this._tableEl.closest('.dataTables_wrapper');
-      if (wrapper) {
-        var filterDiv = wrapper.querySelector('.dataTables_filter');
-        if (filterDiv) filterDiv.style.display = 'none';
-      }
-    }
 
     this._rowClickHandler = function (evt) {
       var tr = evt.target.closest('tr');
@@ -1233,6 +1816,7 @@ dmx.Component("datatable", {
       comp.set('id', row.id != null ? row.id : null);
       comp.set('data', Object.assign({}, row));
       comp.set('row', Object.assign({}, row));
+      console.log('Row Updated:', comp.get('row'));
 
       // Force Wappler reactivity to pick up nested property changes
       dmx.nextTick(function () {
@@ -1244,6 +1828,7 @@ dmx.Component("datatable", {
           comp.set('action_number', actionNum);
           if (actionNum >= 1 && actionNum <= 15) {
             comp.dispatchEvent('action_' + actionNum);
+            console.log('Action Dispatched:', 'action_' + actionNum);
           }
           return;
         }

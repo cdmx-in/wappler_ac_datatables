@@ -57,14 +57,58 @@
             { "name": "noload", "hasAttribute": "noload", "title": "Don't Auto Load", "type": "boolean", "defaultValue": false },
             { "name": "table_class", "attribute": "table_class", "title": "Table CSS Class", "type": "text", "defaultValue": "table table-striped table-bordered table-hover" },
             { "name": "page_size", "attribute": "page_size", "title": "Page Size", "type": "number", "defaultValue": 20 },
-            { "name": "enable_column_search", "attribute": "enable_column_search", "title": "Enable Column Search", "type": "boolean", "defaultValue": false, "help": "Show individual search inputs below each column header. Column search values are exposed as top-level column_search object (e.g. datatable1.column_search.name). Bind each value to separate Server Connect params for proper column_search[name]=value query format." },
-            { "name": "enable_global_search", "attribute": "enable_global_search", "title": "Enable Global Search", "type": "boolean", "defaultValue": true, "help": "Show the global search box. When disabled, the global search input is hidden. Can be used independently of column search." },
+            { "name": "enable_global_search", "attribute": "enable_global_search", "title": "Enable Global Search", "type": "boolean", "defaultValue": true, "help": "Show the global search box. When disabled, the global search input is hidden. Can be used independently of advanced column search." },
             { "name": "enable_column_reorder", "attribute": "enable_column_reorder", "title": "Enable Column Reorder", "type": "boolean", "defaultValue": false, "help": "Allow users to drag-and-drop column headers to reorder columns. The order is saved per page and datatable in localStorage so it persists across sessions." },
             { "name": "theme", "attribute": "theme", "title": "Theme", "type": "droplist", "defaultValue": "bootstrap5", "values": [
               { "title": "Default", "value": "dataTables" },
               { "title": "Bootstrap 5", "value": "bootstrap5" },
               { "title": "Bootstrap 4", "value": "bootstrap4" }
             ], "help": "Select the DataTables styling theme. Must match your page framework." }
+          ]
+        },
+        {
+          "group": "Column Search",
+          "variables": [
+            {
+              "name": "enable_column_search",
+              "attribute": "enable_column_search",
+              "title": "Enable Column Search",
+              "type": "boolean",
+              "defaultValue": false,
+              "display": "fieldset",
+              "show": ["column_search_mode", "column_search_position"],
+              "noChangeOnHide": true,
+              "groupEnabler": true,
+              "help": "Show search/filter controls for individual columns. Column search values are exposed as top-level column_search object (e.g. datatable1.column_search.name).",
+              "children": [
+                {
+                  "name": "column_search_mode",
+                  "attribute": "column_search_mode",
+                  "title": "Search Mode",
+                  "type": "droplist",
+                  "defaultValue": "simple",
+                  "initDisplay": "none",
+                  "values": [
+                    { "title": "Simple (text input)", "value": "simple" },
+                    { "title": "Advanced (operators & conditions)", "value": "advanced" }
+                  ],
+                  "help": "Simple: a plain text input per column. Advanced: type-aware filters with operators (contains, equals, between, date range, etc.)."
+                },
+                {
+                  "name": "column_search_position",
+                  "attribute": "column_search_position",
+                  "title": "Search Position",
+                  "type": "droplist",
+                  "defaultValue": "row",
+                  "initDisplay": "none",
+                  "values": [
+                    { "title": "Header", "value": "header" },
+                    { "title": "New Row (inline)", "value": "row" }
+                  ],
+                  "help": "Choose where column search controls appear. 'Header' places controls in the column header area. 'New Row' adds a dedicated search row below the header."
+                }
+              ]
+            }
           ]
         },
         {
@@ -95,7 +139,8 @@
                   { "title": "Text", "value": "text" },
                   { "title": "Number", "value": "number" },
                   { "title": "Date", "value": "date" }
-                ] } }
+                ] } },
+                { "field": "footer_value", "caption": "Footer Value", "size": "10%", "editable": { "type": "text", "dataBindings": true } }
               ],
               "newRecord": {
                 "field": "",
@@ -104,7 +149,8 @@
                 "default_content": "",
                 "searchable": true,
                 "orderable": true,
-                "search_type": ""
+                "search_type": "",
+                "footer_value": ""
               }
             }
           ]
@@ -216,24 +262,8 @@
       "allowed_children": {},
       "copyFiles": [
         {
-          "src": "dataTables.min.js",
-          "dst": "js/dataTables.min.js"
-        },
-        {
-          "src": "dataTables.buttons.min.js",
-          "dst": "js/dataTables.buttons.min.js"
-        },
-        {
-          "src": "jszip.min.js",
-          "dst": "js/jszip.min.js"
-        },
-        {
-          "src": "buttons.html5.min.js",
-          "dst": "js/buttons.html5.min.js"
-        },
-        {
-          "src": "buttons.print.min.js",
-          "dst": "js/buttons.print.min.js"
+          "src": "dataTables.bundle.min.js",
+          "dst": "js/dataTables.bundle.min.js"
         },
         {
           "src": "dataTables.dataTables.min.css",
@@ -286,27 +316,7 @@
       ],
       "linkFiles": [
         {
-          "src": "js/dataTables.min.js",
-          "type": "js",
-          "defer": true
-        },
-        {
-          "src": "js/dataTables.buttons.min.js",
-          "type": "js",
-          "defer": true
-        },
-        {
-          "src": "js/jszip.min.js",
-          "type": "js",
-          "defer": true
-        },
-        {
-          "src": "js/buttons.html5.min.js",
-          "type": "js",
-          "defer": true
-        },
-        {
-          "src": "js/buttons.print.min.js",
+          "src": "js/dataTables.bundle.min.js",
           "type": "js",
           "defer": true
         },
