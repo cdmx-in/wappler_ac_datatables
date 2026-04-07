@@ -140,7 +140,8 @@
                   { "title": "Number", "value": "number" },
                   { "title": "Date", "value": "date" }
                 ] } },
-                { "field": "footer_value", "caption": "Footer Value", "size": "10%", "editable": { "type": "text", "dataBindings": true } }
+                { "field": "footer_value", "caption": "Footer Value", "size": "10%", "editable": { "type": "datapicker" } },
+                { "field": "render", "caption": "Render Function", "size": "20%", "editable": { "type": "text" }, "help": "Optional JS function string used as DataTables render callback, e.g. function(data,type,row){return '<b>'+data+'</b>';}" }
               ],
               "newRecord": {
                 "field": "",
@@ -150,7 +151,8 @@
                 "searchable": true,
                 "orderable": true,
                 "search_type": "",
-                "footer_value": ""
+                "footer_value": "",
+                "render": ""
               }
             }
           ]
@@ -202,7 +204,7 @@
                     { "field": "tooltip", "caption": "Tooltip", "size": "15%", "editable": { "type": "text" } },
                     { "field": "icon_class", "caption": "Icon Class", "size": "20%", "editable": { "type": "text" } },
                     { "field": "btn_class", "caption": "Button Class", "size": "15%", "editable": { "type": "text" } },
-                    { "field": "condition", "caption": "Condition", "size": "10%", "editable": { "type": "text", "dataBindings": true } }
+                    { "field": "condition", "caption": "Condition", "size": "10%", "editable": { "type": "text"} }
                   ],
                   "newRecord": {
                     "enabled": true,

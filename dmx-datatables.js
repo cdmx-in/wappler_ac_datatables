@@ -49,13 +49,15 @@ dmx.Component("datatable", {
     column_search_position: { type: String, default: 'row' },
     enable_global_search: { type: Boolean, default: true },
     enable_column_reorder: { type: Boolean, default: false },
-    export_options: { type: Array, default: [
-      { "enabled": false, "type": "copy", "title": "Copy" },
-      { "enabled": true, "type": "csv", "title": "CSV" },
-      { "enabled": true, "type": "excel", "title": "Excel" },
-      { "enabled": false, "type": "pdf", "title": "PDF" },
-      { "enabled": false, "type": "print", "title": "Print" }
-    ] },
+    export_options: {
+      type: Array, default: [
+        { "enabled": false, "type": "copy", "title": "Copy" },
+        { "enabled": true, "type": "csv", "title": "CSV" },
+        { "enabled": true, "type": "excel", "title": "Excel" },
+        { "enabled": false, "type": "pdf", "title": "PDF" },
+        { "enabled": false, "type": "print", "title": "Print" }
+      ]
+    },
     theme: { type: String, default: 'bootstrap5' }
   },
 
@@ -540,13 +542,21 @@ dmx.Component("datatable", {
         var col = {
           data: key,
           name: (override && override.name) || key,
-          title: (override && override.header) || key,
+          title: (override && override.header) || comp._humanizeField(key),
           defaultContent: (override && override.default_content) || ''
         };
         if (override) {
           if (override.searchable === false || override.searchable === 'false') col.searchable = false;
           if (override.orderable === false || override.orderable === 'false') col.orderable = false;
           if (override.footer_value != null && override.footer_value !== '') col.footerValue = override.footer_value;
+          if (override.render) {
+            var renderFn = comp._parseRenderFn(override.render);
+            if (renderFn) col.render = renderFn;
+          }
+        }
+        // Auto date render if no user render supplied
+        if (!col.render && comp._detectedSearchTypes[key] === 'date') {
+          col.render = comp._defaultDateRender;
         }
         cols.push(col);
       });
@@ -562,7 +572,11 @@ dmx.Component("datatable", {
       if (!rows.length) return cols;
       Object.keys(rows[0]).forEach(function (key) {
         comp._detectedSearchTypes[key] = comp._detectSearchType(key, rows);
-        cols.push({ data: key, name: key, title: key, defaultContent: '' });
+        var col = { data: key, name: key, title: comp._humanizeField(key), defaultContent: '' };
+        if (comp._detectedSearchTypes[key] === 'date') {
+          col.render = comp._defaultDateRender;
+        }
+        cols.push(col);
       });
       this._searchTypesDetected = rows.length > 0;
       this._columnsDetected = true;
@@ -579,17 +593,75 @@ dmx.Component("datatable", {
       var col = {
         data: h.field,
         name: h.name || h.field,
-        title: h.header || h.field,
+        title: h.header || comp._humanizeField(h.field),
         defaultContent: h.default_content || ''
       };
       if (h.searchable === false || h.searchable === 'false') col.searchable = false;
       if (h.orderable === false || h.orderable === 'false') col.orderable = false;
       if (h.footer_value != null && h.footer_value !== '') col.footerValue = h.footer_value;
+      if (h.render) {
+        var renderFn = comp._parseRenderFn(h.render);
+        if (renderFn) col.render = renderFn;
+      }
+      // Auto date render if no user render supplied
+      if (!col.render) {
+        var colKey = h.name || h.field;
+        if (comp._detectedSearchTypes[colKey] === 'date') {
+          col.render = comp._defaultDateRender;
+        }
+      }
       cols.push(col);
     });
     this._searchTypesDetected = rows.length > 0;
     this._columnsDetected = headers.length > 0;
     return cols;
+  },
+
+  _defaultDateRender: function (data, type) {
+    if (type !== 'display' && type !== 'print') return data;
+    if (data == null || data === '') return '';
+    var d = new Date(data);
+    if (isNaN(d.getTime())) return String(data);
+    var str = String(data).trim();
+    // Datetime if value has a time component (longer than YYYY-MM-DD)
+    if (str.length > 10) {
+      return d.toLocaleString(undefined, {
+        year: 'numeric', month: 'short', day: 'numeric',
+        hour: '2-digit', minute: '2-digit'
+      });
+    }
+    return d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+  },
+
+  _humanizeField: function (str) {
+    if (!str || typeof str !== 'string') return str;
+    // Replace underscores and hyphens with spaces first
+    var result = str.replace(/[_-]+/g, ' ');
+    // Split acronym runs before a Title-case word: XMLParser → XML Parser
+    result = result
+      .replace(/([A-Z]+)([A-Z][a-z])/g, '$1 $2')
+      // Split lowercase→uppercase boundary: camelCase → camel Case
+      .replace(/([a-z\d])([A-Z])/g, '$1 $2');
+    // Capitalise each word
+    return result.replace(/\b\w/g, function (ch) { return ch.toUpperCase(); });
+  },
+
+  _parseRenderFn: function (str) {
+    if (!str || typeof str !== 'string') return null;
+    var trimmed = str.trim();
+    if (!trimmed) return null;
+    try {
+      // eslint-disable-next-line no-new-func
+      var fn = new Function('return (' + trimmed + ')')();
+      if (typeof fn !== 'function') {
+        console.warn('[dmx-datatable] render value is not a function:', trimmed);
+        return null;
+      }
+      return fn;
+    } catch (e) {
+      console.warn('[dmx-datatable] Invalid render function, column render skipped:', e.message);
+      return null;
+    }
   },
 
   _escapeAttr: function (str) {
@@ -603,13 +675,19 @@ dmx.Component("datatable", {
 
   _evaluateCondition: function (condition, row) {
     if (!condition || !condition.trim()) return true;
+
     try {
-      this.data.row = row;
+      // inject all row fields directly
+      Object.assign(this.data, row);
+
       var result = dmx.parse(condition, this);
-      this.data.row = undefined;
+
+      // cleanup
+      Object.keys(row).forEach(key => delete this.data[key]);
+
       return !!result;
     } catch (e) {
-      this.data.row = undefined;
+      Object.keys(row).forEach(key => delete this.data[key]);
       return true;
     }
   },
@@ -780,9 +858,10 @@ dmx.Component("datatable", {
       var v1 = valInput.value;
       var v2 = val2Input.value;
       var val = '';
-      if (op && v1 !== '') {
-        val = op + ':' + v1;
-        if (op === 'between' && v2 !== '') val += ':' + v2;
+      if (v1 !== '') {
+        var effectiveOp = op || 'eq';
+        val = effectiveOp + ':' + v1;
+        if (effectiveOp === 'between' && v2 !== '') val += ':' + v2;
       }
       clearTimeout(debounceTimer);
       debounceTimer = setTimeout(function () {
@@ -1344,7 +1423,7 @@ dmx.Component("datatable", {
     });
   },
 
-  // ── Advanced Column Search: Row (inline) mode ──
+  // ── Advanced Column Search: Row mode (compact: simple input + popup icon) ──
 
   _setupAdvancedSearchRow: function () {
     var comp = this;
@@ -1367,251 +1446,217 @@ dmx.Component("datatable", {
         return;
       }
 
+      var headerEl = col.header();
+      var colTitle = (headerEl.querySelector('.dmx-dt-header-content') || headerEl).textContent.trim();
       var searchType = comp._getSearchTypeForColumn(colSettings.sName || colName);
 
-      if (searchType === 'date') {
-        comp._buildInlineDateSearch(col, th);
-      } else if (searchType === 'number') {
-        comp._buildInlineNumberSearch(col, th);
+      // ── Build popup ──
+      var popup = document.createElement('div');
+      popup.className = 'dmx-dt-filter-popup';
+      popup.setAttribute('data-dmx-dt-id', comp.props.id || '');
+
+      var popupHeader = document.createElement('div');
+      popupHeader.className = 'dmx-dt-filter-popup-header';
+      popupHeader.innerHTML = '<span>Filter: ' + comp._escapeAttr(colTitle) + '</span>';
+
+      var clearBtn = document.createElement('button');
+      clearBtn.type = 'button';
+      clearBtn.className = 'dmx-dt-filter-clear-btn';
+      clearBtn.textContent = 'Clear';
+      popupHeader.appendChild(clearBtn);
+      popup.appendChild(popupHeader);
+
+      var popupBody = document.createElement('div');
+      popupBody.className = 'dmx-dt-filter-popup-body';
+
+      // ── Icon button ──
+      var iconBtn = document.createElement('span');
+      iconBtn.className = 'dmx-dt-filter-icon';
+      iconBtn.title = 'Advanced filter: ' + colTitle;
+      iconBtn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" width="14" height="14" fill="currentColor"><path d="M1.5 1.5A.5.5 0 0 1 2 1h12a.5.5 0 0 1 .5.5v2a.5.5 0 0 1-.128.334L10 8.692V13.5a.5.5 0 0 1-.342.474l-3 1A.5.5 0 0 1 6 14.5V8.692L1.628 3.834A.5.5 0 0 1 1.5 3.5v-2z"/></svg>';
+
+      // ── Cell wrapper ──
+      var wrapper = document.createElement('div');
+      wrapper.className = 'dmx-dt-adv-row-cell';
+
+      if (searchType === 'text') {
+        // Build popup first so triggerSearch is wired before we reference its elements
+        comp._buildTextSearchInput(col, popupBody, iconBtn, clearBtn);
+        var popupCond1Val = popupBody.querySelector('.dmx-dt-text-val');
+
+        // Inline quick-search input (shows alongside the icon)
+        var textInput = document.createElement('input');
+        textInput.type = 'text';
+        textInput.className = 'dmx-dt-inline-search';
+        textInput.placeholder = colTitle;
+
+        textInput.addEventListener('input', function () {
+          if (popupCond1Val) {
+            // Set the popup's first-condition value and let popup's
+            // own triggerSearch handle the draw — ensures consistent
+            // txt:contains:VALUE format sent to the server.
+            popupCond1Val.value = textInput.value;
+            popupCond1Val.dispatchEvent(new Event('input'));
+          } else {
+            col.search(textInput.value ? 'txt:contains:' + textInput.value : '').draw();
+            comp._updateFilterIconState(iconBtn, !!textInput.value);
+          }
+        });
+        textInput.addEventListener('click', function (e) { e.stopPropagation(); });
+
+        // Popup → inline: mirror cond1 value back so inline stays in sync
+        if (popupCond1Val) {
+          popupCond1Val.addEventListener('input', function () {
+            // Only reflect when the operator is 'contains' (default); otherwise
+            // the inline would show a misleading value for e.g. 'startsWith'.
+            var op1El = popupBody.querySelector('.dmx-dt-text-op');
+            var op = op1El ? op1El.value : 'contains';
+            textInput.value = (op === 'contains') ? popupCond1Val.value : '';
+          });
+        }
+
+        // clearBtn already resets popup fields via _buildTextSearchInput;
+        // also reset inline here.
+        clearBtn.addEventListener('click', function () {
+          textInput.value = '';
+        });
+
+        wrapper.appendChild(textInput);
+        wrapper.appendChild(iconBtn);
       } else {
-        comp._buildInlineTextSearch(col, th);
+        // Number / date: build popup controls FIRST to capture refs, then inline input
+
+        if (searchType === 'date') {
+          comp._buildDateSearchInput(col, popupBody);
+        } else {
+          comp._buildNumberSearchInput(col, popupBody);
+        }
+
+        if (searchType === 'number') {
+          var popupOpSel = popupBody.querySelector('select');
+          var popupNumVal = popupBody.querySelector('input[type="number"]:not(.dmx-dt-num-val2)');
+
+          var numInput = document.createElement('input');
+          numInput.type = 'number';
+          numInput.className = 'dmx-dt-inline-search';
+          numInput.placeholder = colTitle;
+
+          var numDebounce;
+          numInput.addEventListener('input', function () {
+            clearTimeout(numDebounce);
+            numDebounce = setTimeout(function () {
+              // Delegate to popup's own triggerSearch (same pattern as text)
+              // so the draw is fired from the same code path as the popup.
+              if (popupOpSel)  popupOpSel.value = numInput.value !== '' ? 'eq' : '';
+              if (popupNumVal) {
+                popupNumVal.value = numInput.value;
+                popupNumVal.dispatchEvent(new Event('input'));
+              }
+              comp._updateFilterIconState(iconBtn, !!numInput.value);
+            }, 300);
+          });
+          numInput.addEventListener('click', function (e) { e.stopPropagation(); });
+
+          // Popup → inline: sync back only when op is 'eq' so inline stays meaningful
+          if (popupNumVal) {
+            popupNumVal.addEventListener('input', function () {
+              var op = popupOpSel ? popupOpSel.value : '';
+              numInput.value = (op === 'eq' || op === '') ? popupNumVal.value : '';
+              comp._updateFilterIconState(iconBtn, !!col.search());
+            });
+          }
+          if (popupOpSel) {
+            popupOpSel.addEventListener('change', function () {
+              if (popupOpSel.value !== 'eq') numInput.value = '';
+            });
+          }
+
+          clearBtn.addEventListener('click', function (e) {
+            e.stopPropagation();
+            numInput.value = '';
+            popupBody.querySelectorAll('input').forEach(function (inp) { inp.value = ''; });
+            popupBody.querySelectorAll('select').forEach(function (sel) { sel.selectedIndex = 0; });
+            var val2 = popupBody.querySelector('.dmx-dt-num-val2');
+            if (val2) val2.style.display = 'none';
+            col.search('').draw();
+            comp._updateFilterIconState(iconBtn, false);
+            comp._closeActivePopup();
+          });
+
+          wrapper.appendChild(numInput);
+
+        } else if (searchType === 'date') {
+          var popupFromInp = popupBody.querySelector('input[title="From date"]');
+          var popupToInp = popupBody.querySelector('input[title="To date"]');
+
+          var dateInput = document.createElement('input');
+          dateInput.type = 'date';
+          dateInput.className = 'dmx-dt-inline-search';
+          dateInput.title = colTitle;
+
+          var dateDebounce;
+          dateInput.addEventListener('change', function () {
+            clearTimeout(dateDebounce);
+            dateDebounce = setTimeout(function () {
+              // Delegate to popup's own triggerSearch via dispatchEvent
+              if (popupFromInp) {
+                popupFromInp.value = dateInput.value ? dateInput.value + 'T00:00' : '';
+                popupFromInp.dispatchEvent(new Event('change'));
+              }
+              if (popupToInp) {
+                popupToInp.value = dateInput.value ? dateInput.value + 'T23:59' : '';
+                popupToInp.dispatchEvent(new Event('change'));
+              }
+              comp._updateFilterIconState(iconBtn, !!dateInput.value);
+            }, 100);
+          });
+          dateInput.addEventListener('click', function (e) { e.stopPropagation(); });
+
+          // Popup → inline: when "from" changes in popup, reflect date in inline
+          if (popupFromInp) {
+            popupFromInp.addEventListener('change', function () {
+              dateInput.value = popupFromInp.value ? popupFromInp.value.substring(0, 10) : '';
+              comp._updateFilterIconState(iconBtn, !!col.search());
+            });
+          }
+
+          clearBtn.addEventListener('click', function (e) {
+            e.stopPropagation();
+            dateInput.value = '';
+            popupBody.querySelectorAll('input').forEach(function (inp) { inp.value = ''; });
+            col.search('').draw();
+            comp._updateFilterIconState(iconBtn, false);
+            comp._closeActivePopup();
+          });
+
+          wrapper.appendChild(dateInput);
+        }
+
+        wrapper.appendChild(iconBtn);
       }
 
+      popup.appendChild(popupBody);
+      document.body.appendChild(popup);
+      comp._applyThemeVarsToPopup(popup);
+
+      popup.addEventListener('mousedown', function (e) { e.stopPropagation(); });
+      popup.addEventListener('click', function (e) { e.stopPropagation(); });
+
+      iconBtn.addEventListener('click', function (e) {
+        e.stopPropagation();
+        e.preventDefault();
+        if (comp._activeFilterPopup === popup) {
+          comp._closeActivePopup();
+        } else {
+          comp._openFilterPopup(popup, iconBtn);
+        }
+      });
+
+      th.appendChild(wrapper);
       searchRow.appendChild(th);
     });
 
     thead.appendChild(searchRow);
-  },
-
-  _buildInlineTextSearch: function (col, th) {
-    var comp = this;
-    var container = document.createElement('div');
-    container.className = 'dmx-dt-inline-text';
-
-    // Condition 1
-    var opSelect1 = document.createElement('select');
-    opSelect1.className = 'dmx-dt-inline-search';
-    var ops = [
-      { value: 'contains', label: 'Contains' },
-      { value: 'notContains', label: 'Not contains' },
-      { value: 'equals', label: 'Equals' },
-      { value: 'notEquals', label: 'Not equals' },
-      { value: 'startsWith', label: 'Starts with' },
-      { value: 'endsWith', label: 'Ends with' },
-      { value: 'blank', label: 'Is blank' },
-      { value: 'notBlank', label: 'Is not blank' }
-    ];
-    ops.forEach(function (o) {
-      var opt = document.createElement('option');
-      opt.value = o.value;
-      opt.textContent = o.label;
-      opSelect1.appendChild(opt);
-    });
-
-    var valInput1 = document.createElement('input');
-    valInput1.type = 'text';
-    valInput1.className = 'dmx-dt-inline-search';
-    valInput1.placeholder = 'Value...';
-
-    opSelect1.addEventListener('change', function () {
-      var isBlankOp = this.value === 'blank' || this.value === 'notBlank';
-      valInput1.style.display = isBlankOp ? 'none' : '';
-      if (isBlankOp) valInput1.value = '';
-      triggerSearch();
-    });
-
-    // AND/OR selector
-    var joinSelect = document.createElement('select');
-    joinSelect.className = 'dmx-dt-inline-search dmx-dt-inline-join';
-    joinSelect.style.display = 'none';
-    var joinAnd = document.createElement('option');
-    joinAnd.value = 'and'; joinAnd.textContent = 'AND';
-    var joinOr = document.createElement('option');
-    joinOr.value = 'or'; joinOr.textContent = 'OR';
-    joinSelect.appendChild(joinAnd);
-    joinSelect.appendChild(joinOr);
-
-    // Condition 2
-    var opSelect2 = document.createElement('select');
-    opSelect2.className = 'dmx-dt-inline-search';
-    opSelect2.style.display = 'none';
-    ops.forEach(function (o) {
-      var opt = document.createElement('option');
-      opt.value = o.value;
-      opt.textContent = o.label;
-      opSelect2.appendChild(opt);
-    });
-
-    var valInput2 = document.createElement('input');
-    valInput2.type = 'text';
-    valInput2.className = 'dmx-dt-inline-search';
-    valInput2.placeholder = 'Value...';
-    valInput2.style.display = 'none';
-
-    opSelect2.addEventListener('change', function () {
-      var isBlankOp = this.value === 'blank' || this.value === 'notBlank';
-      valInput2.style.display = isBlankOp ? 'none' : '';
-      if (isBlankOp) valInput2.value = '';
-      triggerSearch();
-    });
-
-    var debounceTimer;
-    function triggerSearch() {
-      var op1 = opSelect1.value;
-      var v1 = valInput1.value;
-      var hasCond1 = (op1 === 'blank' || op1 === 'notBlank') || v1.trim() !== '';
-
-      // Show/hide second condition
-      if (hasCond1) {
-        joinSelect.style.display = '';
-        opSelect2.style.display = '';
-        var isBlank2 = opSelect2.value === 'blank' || opSelect2.value === 'notBlank';
-        valInput2.style.display = isBlank2 ? 'none' : '';
-      } else {
-        joinSelect.style.display = 'none';
-        opSelect2.style.display = 'none';
-        valInput2.style.display = 'none';
-      }
-
-      var op2 = opSelect2.value;
-      var v2 = valInput2.value;
-      var join = joinSelect.value;
-      var hasCond2 = (op2 === 'blank' || op2 === 'notBlank') || v2.trim() !== '';
-
-      var parts = [];
-      if (hasCond1) parts.push('txt:' + op1 + ':' + v1);
-      if (hasCond1 && hasCond2) {
-        parts.push(join);
-        parts.push('txt:' + op2 + ':' + v2);
-      }
-
-      var val = parts.join('|');
-      clearTimeout(debounceTimer);
-      debounceTimer = setTimeout(function () {
-        if (col.search() !== val) col.search(val).draw();
-      }, 300);
-    }
-
-    valInput1.addEventListener('input', triggerSearch);
-    opSelect1.addEventListener('change', triggerSearch);
-    valInput2.addEventListener('input', triggerSearch);
-    joinSelect.addEventListener('change', triggerSearch);
-
-    [opSelect1, valInput1, joinSelect, opSelect2, valInput2].forEach(function (el) {
-      el.addEventListener('click', function (e) { e.stopPropagation(); });
-    });
-
-    container.appendChild(opSelect1);
-    container.appendChild(valInput1);
-    container.appendChild(joinSelect);
-    container.appendChild(opSelect2);
-    container.appendChild(valInput2);
-    th.appendChild(container);
-  },
-
-  _buildInlineNumberSearch: function (col, th) {
-    var container = document.createElement('div');
-    container.className = 'dmx-dt-inline-number';
-
-    var opSelect = document.createElement('select');
-    opSelect.className = 'dmx-dt-inline-search';
-    var ops = [
-      { value: '', label: 'Any' },
-      { value: 'eq', label: '=' },
-      { value: 'gt', label: '>' },
-      { value: 'gte', label: '>=' },
-      { value: 'lt', label: '<' },
-      { value: 'lte', label: '<=' },
-      { value: 'between', label: 'Between' }
-    ];
-    ops.forEach(function (o) {
-      var opt = document.createElement('option');
-      opt.value = o.value;
-      opt.textContent = o.label;
-      opSelect.appendChild(opt);
-    });
-
-    var valInput = document.createElement('input');
-    valInput.type = 'number';
-    valInput.className = 'dmx-dt-inline-search';
-    valInput.placeholder = 'Value';
-
-    var val2Input = document.createElement('input');
-    val2Input.type = 'number';
-    val2Input.className = 'dmx-dt-inline-search';
-    val2Input.placeholder = 'Max';
-    val2Input.style.display = 'none';
-
-    opSelect.addEventListener('change', function () {
-      val2Input.style.display = this.value === 'between' ? '' : 'none';
-      if (this.value !== 'between') val2Input.value = '';
-      triggerSearch();
-    });
-
-    var debounceTimer;
-    function triggerSearch() {
-      var op = opSelect.value;
-      var v1 = valInput.value;
-      var v2 = val2Input.value;
-      var val = '';
-      if (op && v1 !== '') {
-        val = op + ':' + v1;
-        if (op === 'between' && v2 !== '') val += ':' + v2;
-      }
-      clearTimeout(debounceTimer);
-      debounceTimer = setTimeout(function () {
-        if (col.search() !== val) col.search(val).draw();
-      }, 300);
-    }
-
-    valInput.addEventListener('input', triggerSearch);
-    val2Input.addEventListener('input', triggerSearch);
-    opSelect.addEventListener('click', function (e) { e.stopPropagation(); });
-    valInput.addEventListener('click', function (e) { e.stopPropagation(); });
-    val2Input.addEventListener('click', function (e) { e.stopPropagation(); });
-
-    container.appendChild(opSelect);
-    container.appendChild(valInput);
-    container.appendChild(val2Input);
-    th.appendChild(container);
-  },
-
-  _buildInlineDateSearch: function (col, th) {
-    var container = document.createElement('div');
-    container.className = 'dmx-dt-inline-date';
-
-    var fromInput = document.createElement('input');
-    fromInput.type = 'datetime-local';
-    fromInput.className = 'dmx-dt-inline-search';
-    fromInput.title = 'From';
-
-    var toInput = document.createElement('input');
-    toInput.type = 'datetime-local';
-    toInput.className = 'dmx-dt-inline-search';
-    toInput.title = 'To';
-
-    var debounceTimer;
-    function onDateChange() {
-      var from = fromInput.value || '';
-      var to = toInput.value || '';
-      var val = '';
-      if (from && to) val = from + '|' + to;
-      else if (from) val = from + '|';
-      else if (to) val = '|' + to;
-      clearTimeout(debounceTimer);
-      debounceTimer = setTimeout(function () {
-        if (col.search() !== val) col.search(val).draw();
-      }, 300);
-    }
-
-    fromInput.addEventListener('change', onDateChange);
-    toInput.addEventListener('change', onDateChange);
-    fromInput.addEventListener('click', function (e) { e.stopPropagation(); });
-    toInput.addEventListener('click', function (e) { e.stopPropagation(); });
-
-    container.appendChild(fromInput);
-    container.appendChild(toInput);
-    th.appendChild(container);
   },
 
   _createTable: function () {

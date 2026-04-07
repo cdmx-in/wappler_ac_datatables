@@ -130,6 +130,27 @@ div.dt-container tfoot th {
   gap: 4px;
 }
 
+/* ── Advanced row: compact input + icon wrapper ── */
+
+.dmx-dt-adv-row-cell {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.dmx-dt-adv-row-cell .dmx-dt-inline-search {
+  flex: 1;
+  min-width: 0;
+}
+
+.dmx-dt-adv-row-cell .dmx-dt-filter-icon {
+  flex-shrink: 0;
+}
+
+.dmx-dt-adv-row-icon-only {
+  justify-content: center;
+}
+
 .dmx-dt-inline-join {
   font-size: 0.7rem;
   font-weight: 600;
