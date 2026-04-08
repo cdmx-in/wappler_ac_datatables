@@ -678,3 +678,78 @@ div.dt-container .dt-processing {
     width: 100%;
   }
 }
+
+/* ── Column Resize Handle ── */
+
+.dmx-dt-resize-handle {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 5px;
+  cursor: col-resize;
+  z-index: 1;
+  background: transparent;
+  transition: background-color 0.15s;
+}
+
+.dmx-dt-resize-handle:hover,
+.dmx-dt-resizing .dmx-dt-resize-handle {
+  background-color: var(--dmx-dt-accent);
+  opacity: 0.5;
+}
+
+.dmx-dt-resizing {
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* ── Row & Column Highlight ── */
+
+.dmx-dt-row-highlight {
+  background-color: var(--dmx-dt-accent-bg) !important;
+}
+
+.dmx-dt-col-highlight {
+  background-color: var(--dmx-dt-accent-bg) !important;
+}
+
+/* ── Multi-Select Row ── */
+
+.dmx-dt-row-selected {
+  background-color: var(--dmx-dt-accent-bg) !important;
+  outline: 1px solid var(--dmx-dt-accent);
+  outline-offset: -1px;
+}
+
+.dmx-dt-row-selected td {
+  background-color: inherit !important;
+}
+
+/* ── RTL Support ── */
+
+[dir="rtl"] div.dt-container .dt-layout-start {
+  justify-content: flex-end;
+}
+
+[dir="rtl"] div.dt-container .dt-layout-end {
+  justify-content: flex-start;
+}
+
+[dir="rtl"] .dmx-dt-resize-handle {
+  right: auto;
+  left: 0;
+}
+
+[dir="rtl"] .dmx-dt-filter-icon {
+  margin-left: 0;
+  margin-right: 4px;
+}
+
+[dir="rtl"] div.dropdown-menu.dt-button-collection .dt-button {
+  text-align: right;
+}
+
+[dir="rtl"] .dmx-dt-action-wrap {
+  direction: rtl;
+}

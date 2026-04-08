@@ -20,6 +20,7 @@
         { "name": "action_name", "type": "text" },
         { "name": "action_number", "type": "number" },
         { "name": "count", "type": "number" },
+        { "name": "selected_rows", "type": "array" },
         { "name": "serverState", "type": "object", "sub": [
           { "name": "offset", "type": "number" },
           { "name": "limit", "type": "number" },
@@ -46,7 +47,33 @@
       "actionsScheme": [
         { "addTitle": "Load Table", "title": "Load Table", "name": "loadTable", "icon": "fa fa-lg fa-play", "state": "opened", "help": "Load the DataTable" },
         { "addTitle": "Reload Table", "title": "Reload Table", "name": "reloadTable", "icon": "fa fa-lg fa-sync", "state": "opened", "help": "Reload the DataTable" },
-        { "addTitle": "Destroy Table", "title": "Destroy Table", "name": "destroyTable", "icon": "fa fa-lg fa-times", "state": "opened", "help": "Destroy the DataTable" }
+        { "addTitle": "Destroy Table", "title": "Destroy Table", "name": "destroyTable", "icon": "fa fa-lg fa-times", "state": "opened", "help": "Destroy the DataTable" },
+        {
+          "addTitle": "Export",
+          "title": "Export",
+          "name": "exportData",
+          "icon": "fa fa-lg fa-download",
+          "state": "opened",
+          "help": "Trigger an export of the table data.",
+          "properties": [
+            {
+              "name": "type",
+              "attribute": "type",
+              "title": "Export Type",
+              "type": "droplist",
+              "defaultValue": "csv",
+              "values": [
+                { "title": "CSV", "value": "csv" },
+                { "title": "Excel", "value": "excel" },
+                { "title": "PDF", "value": "pdf" },
+                { "title": "Copy", "value": "copy" },
+                { "title": "Print", "value": "print" }
+              ]
+            }
+          ]
+        },
+        { "addTitle": "Get Selected Rows", "title": "Get Selected Rows", "name": "getSelectedRows", "icon": "fa fa-lg fa-check-square", "state": "opened", "help": "Returns all currently selected rows (requires Enable Multi Select)." },
+        { "addTitle": "Reset Column State", "title": "Reset Column State", "name": "resetColumnState", "icon": "fa fa-lg fa-undo", "state": "opened", "help": "Clears saved column order and column widths from localStorage and rebuilds the table." }
       ],
       "properties": [
         {
@@ -56,14 +83,26 @@
             { "name": "data", "attribute": "dmx-bind:data", "title": "Data Source", "type": "text", "required": true, "dataBindings": true, "help": "Bind to your Server Connect data. Accepts Wappler paginated response (object with data/total/offset/limit) or plain array." },
             { "name": "noload", "hasAttribute": "noload", "title": "Don't Auto Load", "type": "boolean", "defaultValue": false },
             { "name": "table_class", "attribute": "table_class", "title": "Table CSS Class", "type": "text", "defaultValue": "table table-striped table-bordered table-hover" },
-            { "name": "page_size", "attribute": "page_size", "title": "Page Size", "type": "number", "defaultValue": 20 },
+
             { "name": "enable_global_search", "attribute": "enable_global_search", "title": "Enable Global Search", "type": "boolean", "defaultValue": true, "help": "Show the global search box. When disabled, the global search input is hidden. Can be used independently of advanced column search." },
             { "name": "enable_column_reorder", "attribute": "enable_column_reorder", "title": "Enable Column Reorder", "type": "boolean", "defaultValue": false, "help": "Allow users to drag-and-drop column headers to reorder columns. The order is saved per page and datatable in localStorage so it persists across sessions." },
+            { "name": "enable_column_resize", "attribute": "enable_column_resize", "title": "Enable Column Resize", "type": "boolean", "defaultValue": false, "help": "Allow users to resize columns by dragging column borders. Widths are saved per page and datatable in localStorage so they persist across sessions." },
+            { "name": "enable_rtl", "attribute": "enable_rtl", "title": "Enable RTL", "type": "boolean", "defaultValue": false, "help": "Enable right-to-left text direction for the table. Useful for Arabic, Hebrew and other RTL languages." },
+            { "name": "enable_row_highlight", "attribute": "enable_row_highlight", "title": "Enable Row Highlight", "type": "boolean", "defaultValue": false, "help": "Highlight the entire row on mouse hover." },
+            { "name": "enable_column_highlight", "attribute": "enable_column_highlight", "title": "Enable Column Highlight", "type": "boolean", "defaultValue": false, "help": "Highlight the entire column on mouse hover." },
+            { "name": "enable_multi_select", "attribute": "enable_multi_select", "title": "Enable Multi Select", "type": "boolean", "defaultValue": false, "help": "Allow selecting multiple rows by clicking. Selected rows are exposed via the selected_rows data property." },
             { "name": "theme", "attribute": "theme", "title": "Theme", "type": "droplist", "defaultValue": "bootstrap5", "values": [
               { "title": "Default", "value": "dataTables" },
               { "title": "Bootstrap 5", "value": "bootstrap5" },
               { "title": "Bootstrap 4", "value": "bootstrap4" }
             ], "help": "Select the DataTables styling theme. Must match your page framework." }
+          ]
+        },
+        {
+          "group": "Pagination",
+          "variables": [
+            { "name": "page_length", "attribute": "page_length", "title": "Page Length", "type": "number", "defaultValue": 20, "help": "Number of rows to display per page." },
+            { "name": "length_menu", "attribute": "length_menu", "title": "Length Menu", "type": "text", "defaultValue": "10,20,50,100", "help": "Comma-separated list of page length options shown in the dropdown, e.g. 10,20,50,100" }
           ]
         },
         {
@@ -112,7 +151,7 @@
           ]
         },
         {
-          "group": "Columns",
+          "group": "Columns (Basic)",
           "variables": [
             { "name": "auto_detect_columns", "attribute": "auto_detect_columns", "title": "Auto Detect Columns", "type": "boolean", "defaultValue": true, "help": "When enabled, columns are automatically detected from the API response data. When disabled, use the Field Headers grid below to define columns manually." },
             { "name": "use_grid_as_override", "attribute": "use_grid_as_override", "title": "Use Grid as Override", "type": "boolean", "defaultValue": false, "help": "Only applies when Auto Detect is ON. When enabled, grid entries override auto-detected column properties (header, searchable, orderable, search_type). When disabled, grid is ignored and columns are purely auto-detected." },
@@ -125,7 +164,7 @@
               "encloseBT": true,
               "jsonBT": true,
               "dataBindings": true,
-              "help": "When Auto Detect is ON + Override is ON: grid entries override auto-detected properties. When Auto Detect is OFF: grid defines columns (leave empty to fall back to data keys). Search type is auto-detected but can be overridden per column.",
+              "help": "Define basic column properties: field mapping, header titles, searchable/orderable flags, and visibility.",
               "defaultValue": [],
               "columns": [
                 { "field": "field", "caption": "Field (data)", "size": "20%", "editable": { "type": "text" } },
@@ -134,14 +173,15 @@
                 { "field": "default_content", "caption": "Default Content", "size": "15%", "editable": { "type": "text" } },
                 { "field": "searchable", "caption": "Searchable", "size": "10%", "editable": { "type": "checkbox" } },
                 { "field": "orderable", "caption": "Orderable", "size": "10%", "editable": { "type": "checkbox" } },
-                { "field": "search_type", "caption": "Search Type (optional)", "size": "10%", "editable": { "type": "droplist", "items": [
+                { "field": "search_type", "caption": "Search Type", "size": "10%", "editable": { "type": "droplist", "items": [
                   { "title": "Auto", "value": "" },
                   { "title": "Text", "value": "text" },
                   { "title": "Number", "value": "number" },
-                  { "title": "Date", "value": "date" }
+                  { "title": "Date", "value": "date" },
+                  { "title": "Dropdown", "value": "dropdown" },
+                  { "title": "Boolean", "value": "boolean" }
                 ] } },
-                { "field": "footer_value", "caption": "Footer Value", "size": "10%", "editable": { "type": "datapicker" } },
-                { "field": "render", "caption": "Render Function", "size": "20%", "editable": { "type": "text" }, "help": "Optional JS function string used as DataTables render callback, e.g. function(data,type,row){return '<b>'+data+'</b>';}" }
+                { "field": "isHidden", "caption": "Hidden", "size": "10%", "editable": { "type": "checkbox" } }
               ],
               "newRecord": {
                 "field": "",
@@ -151,8 +191,40 @@
                 "searchable": true,
                 "orderable": true,
                 "search_type": "",
+                "isHidden": false
+              }
+            }
+          ]
+        },
+        {
+          "group": "Columns (Advanced)",
+          "variables": [
+            {
+              "name": "fields_header_advanced",
+              "attribute": "dmx-bind:fields_header_advanced",
+              "title": "Advanced Column Settings",
+              "type": "grid",
+              "jsonFormat": true,
+              "encloseBT": true,
+              "jsonBT": true,
+              "dataBindings": true,
+              "help": "Advanced column settings matched by field name. Define footer values, render functions, width, CSS class, and external data per column.",
+              "defaultValue": [],
+              "columns": [
+                { "field": "field", "caption": "Field (data)", "size": "15%", "editable": { "type": "text" } },
+                { "field": "footer_value", "caption": "Footer Value", "size": "15%", "editable": { "type": "datapicker" } },
+                { "field": "render", "caption": "Render Function", "size": "20%", "editable": { "type": "text" }, "help": "Optional JS function string used as DataTables render callback, e.g. function(data,type,row){return '<b>'+data+'</b>';}" },
+                { "field": "width", "caption": "Width", "size": "10%", "editable": { "type": "text" } },
+                { "field": "className", "caption": "Class Name", "size": "15%", "editable": { "type": "text" } },
+                { "field": "external_data", "caption": "External Data", "size": "25%", "editable": { "type": "datapicker" } }
+              ],
+              "newRecord": {
+                "field": "",
                 "footer_value": "",
-                "render": ""
+                "render": "",
+                "width": "",
+                "className": "",
+                "external_data": ""
               }
             }
           ]
@@ -256,7 +328,8 @@
                 "type": "copy",
                 "title": ""
               }
-            }
+            },
+            { "name": "export_exclude_fields", "attribute": "export_exclude_fields", "title": "Exclude Fields from Export", "type": "text", "defaultValue": "", "help": "Comma-separated list of field names to exclude from export. These columns will not appear in exported files (CSV, Excel, PDF, etc.)." }
           ]
         }
       ],
@@ -388,6 +461,38 @@
           "name": "rowClickedAction",
           "attributeStartsWith": "dmx-on",
           "attribute": "row_clicked",
+          "isValue": true,
+          "actionsPicker": true,
+          "title": "Action:",
+          "type": "text",
+          "help": "Choose the action to execute.",
+          "defaultValue": "",
+          "initDisplay": "none"
+        }
+      ],
+      "allowedOn": {
+        "dmx-datatable": true
+      }
+    },
+    {
+      "name": "dmx-datatable-selection-changed",
+      "attributeStartsWith": "dmx-on",
+      "attribute": "selection_changed",
+      "display": "fieldset",
+      "title": "Selection Changed",
+      "icon": "fa fa-lg fa-check-square",
+      "groupTitle": "DataTable Events",
+      "groupIcon": "fa fa-lg fa-table",
+      "defaultValue": false,
+      "show": ["selectionChangedAction"],
+      "noChangeOnHide": true,
+      "type": "boolean",
+      "groupEnabler": true,
+      "children": [
+        {
+          "name": "selectionChangedAction",
+          "attributeStartsWith": "dmx-on",
+          "attribute": "selection_changed",
           "isValue": true,
           "actionsPicker": true,
           "title": "Action:",

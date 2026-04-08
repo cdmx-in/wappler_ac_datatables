@@ -6,6 +6,7 @@ dmx.Component("datatable", {
     action_name: '',
     action_number: 0,
     count: 0,
+    selected_rows: [],
     serverState: {
       offset: 0,
       limit: 20,
@@ -36,6 +37,8 @@ dmx.Component("datatable", {
     noload: { type: Boolean, default: false },
     table_class: { type: String, default: 'table table-striped table-bordered table-hover' },
     page_size: { type: Number, default: 20 },
+    page_length: { type: Number, default: 0 },
+    length_menu: { type: String, default: '' },
     fields_header: {
       type: Array, default: []
     },
@@ -49,6 +52,11 @@ dmx.Component("datatable", {
     column_search_position: { type: String, default: 'row' },
     enable_global_search: { type: Boolean, default: true },
     enable_column_reorder: { type: Boolean, default: false },
+    enable_column_resize: { type: Boolean, default: false },
+    enable_rtl: { type: Boolean, default: false },
+    enable_row_highlight: { type: Boolean, default: false },
+    enable_column_highlight: { type: Boolean, default: false },
+    enable_multi_select: { type: Boolean, default: false },
     export_options: {
       type: Array, default: [
         { "enabled": false, "type": "copy", "title": "Copy" },
@@ -58,7 +66,9 @@ dmx.Component("datatable", {
         { "enabled": false, "type": "print", "title": "Print" }
       ]
     },
-    theme: { type: String, default: 'bootstrap5' }
+    theme: { type: String, default: 'bootstrap5' },
+    fields_header_advanced: { type: Array, default: [] },
+    export_exclude_fields: { type: String, default: '' }
   },
 
   methods: {
@@ -73,12 +83,64 @@ dmx.Component("datatable", {
     destroyTable: function () {
       this._destroyTable();
       this.set('state', { tableReady: false, loading: false });
+    },
+
+    exportData: function (type) {
+      if (!this._tableInstance) return;
+      type = type ? String(type).toLowerCase() : 'csv';
+      var buttons = this._tableInstance.buttons();
+      if (buttons) {
+        try {
+          this._tableInstance.button('.' + type + ':first').trigger();
+        } catch (e) {
+          // Fallback: find button by extend type
+          var allBtns = this._tableInstance.buttons();
+          for (var i = 0; i < allBtns.length; i++) {
+            try {
+              var inst = allBtns[i].inst;
+              if (inst && inst.s && inst.s.buttons) {
+                for (var j = 0; j < inst.s.buttons.length; j++) {
+                  var btn = inst.s.buttons[j];
+                  if (btn.conf && btn.conf.extend === type) {
+                    btn.node.click();
+                    return;
+                  }
+                  // Check child buttons in collection
+                  if (btn.buttons) {
+                    for (var k = 0; k < btn.buttons.length; k++) {
+                      if (btn.buttons[k].conf && btn.buttons[k].conf.extend === type) {
+                        btn.buttons[k].node.click();
+                        return;
+                      }
+                    }
+                  }
+                }
+              }
+            } catch (ex) { }
+          }
+        }
+      }
+    },
+
+    getSelectedRows: function () {
+      return this.get('selected_rows') || [];
+    },
+
+    resetColumnState: function () {
+      try {
+        localStorage.removeItem(this._getReorderStorageKey());
+      } catch (e) { }
+      try {
+        localStorage.removeItem(this._getResizeStorageKey());
+      } catch (e) { }
+      this._createTable();
     }
   },
 
   events: {
     server_request: Event,
     row_clicked: Event,
+    selection_changed: Event,
     action_1: Event,
     action_2: Event,
     action_3: Event,
@@ -109,6 +171,9 @@ dmx.Component("datatable", {
     this._themeElements = [];
     this._themeVars = null;
     this._reorderCleanup = null;
+    this._resizeCleanup = null;
+    this._highlightCleanup = null;
+    this._selectedRowIndices = new Set();
   },
 
   render: function () {
@@ -141,7 +206,7 @@ dmx.Component("datatable", {
         rows: q.data,
         total: Number(q.total || q.data.length),
         offset: Number(q.offset || 0),
-        limit: Number(q.limit || this.props.page_size || 20),
+        limit: Number(q.limit || this.props.page_length || this.props.page_size || 20),
         page: q.page || null
       };
     }
@@ -157,7 +222,7 @@ dmx.Component("datatable", {
         rows: raw.data,
         total: Number(raw.total || raw.data.length),
         offset: Number(raw.offset || 0),
-        limit: Number(raw.limit || this.props.page_size || 20),
+        limit: Number(raw.limit || this.props.page_length || this.props.page_size || 20),
         page: raw.page || null
       };
     }
@@ -167,7 +232,7 @@ dmx.Component("datatable", {
       rows: [],
       total: 0,
       offset: 0,
-      limit: this.props.page_size || 20,
+      limit: this.props.page_length || this.props.page_size || 20,
       page: null
     };
   },
@@ -187,11 +252,20 @@ dmx.Component("datatable", {
       updatedProps.has('export_options') ||
       updatedProps.has('table_class') ||
       updatedProps.has('page_size') ||
+      updatedProps.has('page_length') ||
+      updatedProps.has('length_menu') ||
       updatedProps.has('enable_column_search') ||
       updatedProps.has('column_search_mode') ||
       updatedProps.has('column_search_position') ||
       updatedProps.has('enable_global_search') ||
-      updatedProps.has('enable_column_reorder')
+      updatedProps.has('enable_column_reorder') ||
+      updatedProps.has('enable_column_resize') ||
+      updatedProps.has('enable_rtl') ||
+      updatedProps.has('enable_row_highlight') ||
+      updatedProps.has('enable_column_highlight') ||
+      updatedProps.has('enable_multi_select') ||
+      updatedProps.has('fields_header_advanced') ||
+      updatedProps.has('export_exclude_fields')
     ) {
       this._createTable();
       return;
@@ -280,6 +354,18 @@ dmx.Component("datatable", {
       this._reorderCleanup = null;
     }
 
+    // Clean up column resize listeners
+    if (this._resizeCleanup) {
+      this._resizeCleanup();
+      this._resizeCleanup = null;
+    }
+
+    // Clean up highlight listeners
+    if (this._highlightCleanup) {
+      this._highlightCleanup();
+      this._highlightCleanup = null;
+    }
+
     // Remove all filter popups belonging to this instance
     var popups = document.querySelectorAll('.dmx-dt-filter-popup[data-dmx-dt-id="' + (this.props.id || '') + '"]');
     popups.forEach(function (el) { el.parentNode.removeChild(el); });
@@ -295,6 +381,10 @@ dmx.Component("datatable", {
       } catch (e) { }
       this._tableInstance = null;
     }
+
+    // Clear selection state
+    this._selectedRowIndices.clear();
+    this.set('selected_rows', []);
   },
 
   _getBasePath: function () {
@@ -506,12 +596,60 @@ dmx.Component("datatable", {
     });
   },
 
+  _parseLengthMenu: function () {
+    var raw = this.props.length_menu;
+    if (raw && typeof raw === 'string' && raw.trim()) {
+      var nums = raw.split(',').map(function (s) { return parseInt(s.trim(), 10); }).filter(function (n) { return !isNaN(n) && n > 0; });
+      if (nums.length) return nums;
+    }
+    return [10, 20, 50, 100];
+  },
+
+  _getAdvancedMap: function () {
+    var adv = Array.isArray(this.props.fields_header_advanced) ? this.props.fields_header_advanced : [];
+    var map = {};
+    adv.forEach(function (a) {
+      if (a && a.field) map[a.field] = a;
+    });
+    return map;
+  },
+
+  _applyAdvancedProps: function (col, fieldKey) {
+    var advMap = this._advancedMap || {};
+    var adv = advMap[fieldKey];
+    if (!adv) return;
+    if (adv.footer_value != null && adv.footer_value !== '') col.footerValue = adv.footer_value;
+    if (adv.render) {
+      var renderFn = this._parseRenderFn(adv.render);
+      if (renderFn) {
+        // If external_data is provided, wrap the render function to inject it
+        if (adv.external_data != null && adv.external_data !== '') {
+          col.render = (function (origFn, extData) {
+            return function (data, type, row, meta) {
+              // Inject external data as row.__ext_<fieldName> for access in render
+              row['__ext_' + fieldKey] = extData;
+              return origFn(data, type, row, meta);
+            };
+          })(renderFn, adv.external_data);
+        } else {
+          col.render = renderFn;
+        }
+      }
+    }
+    if (adv.width != null && adv.width !== '') col.width = adv.width;
+    if (adv.className != null && adv.className !== '') col.className = adv.className;
+    if (adv.external_data != null && adv.external_data !== '') col.externalData = adv.external_data;
+  },
+
   _getColumns: function (rows) {
     var comp = this;
     var headers = Array.isArray(this.props.fields_header) ? this.props.fields_header : [];
     var autoDetect = this.props.auto_detect_columns !== false;
     var useOverride = this.props.use_grid_as_override === true;
     var cols = [];
+
+    // Build advanced settings map
+    this._advancedMap = this._getAdvancedMap();
 
     // Reset detected types on each table creation
     this._detectedSearchTypes = {};
@@ -532,6 +670,10 @@ dmx.Component("datatable", {
 
       Object.keys(rows[0]).forEach(function (key) {
         var override = overrideMap[key];
+
+        // Skip hidden columns
+        if (override && (override.isHidden === true || override.isHidden === 'true')) return;
+
         comp._detectedSearchTypes[key] = comp._detectSearchType(key, rows);
 
         // If override exists and has explicit search_type, use it
@@ -548,12 +690,9 @@ dmx.Component("datatable", {
         if (override) {
           if (override.searchable === false || override.searchable === 'false') col.searchable = false;
           if (override.orderable === false || override.orderable === 'false') col.orderable = false;
-          if (override.footer_value != null && override.footer_value !== '') col.footerValue = override.footer_value;
-          if (override.render) {
-            var renderFn = comp._parseRenderFn(override.render);
-            if (renderFn) col.render = renderFn;
-          }
         }
+        // Apply advanced grid props (footer_value, render, width, className, external_data)
+        comp._applyAdvancedProps(col, key);
         // Auto date render if no user render supplied
         if (!col.render && comp._detectedSearchTypes[key] === 'date') {
           col.render = comp._defaultDateRender;
@@ -573,7 +712,9 @@ dmx.Component("datatable", {
       Object.keys(rows[0]).forEach(function (key) {
         comp._detectedSearchTypes[key] = comp._detectSearchType(key, rows);
         var col = { data: key, name: key, title: comp._humanizeField(key), defaultContent: '' };
-        if (comp._detectedSearchTypes[key] === 'date') {
+        // Apply advanced grid props
+        comp._applyAdvancedProps(col, key);
+        if (!col.render && comp._detectedSearchTypes[key] === 'date') {
           col.render = comp._defaultDateRender;
         }
         cols.push(col);
@@ -585,6 +726,8 @@ dmx.Component("datatable", {
 
     headers.forEach(function (h) {
       if (!h || !h.field) return;
+      // Skip hidden columns
+      if (h.isHidden === true || h.isHidden === 'true') return;
       if (h.search_type) {
         comp._detectedSearchTypes[h.name || h.field] = h.search_type;
       } else if (rows.length) {
@@ -598,11 +741,8 @@ dmx.Component("datatable", {
       };
       if (h.searchable === false || h.searchable === 'false') col.searchable = false;
       if (h.orderable === false || h.orderable === 'false') col.orderable = false;
-      if (h.footer_value != null && h.footer_value !== '') col.footerValue = h.footer_value;
-      if (h.render) {
-        var renderFn = comp._parseRenderFn(h.render);
-        if (renderFn) col.render = renderFn;
-      }
+      // Apply advanced grid props (footer_value, render, width, className, external_data)
+      comp._applyAdvancedProps(col, h.field);
       // Auto date render if no user render supplied
       if (!col.render) {
         var colKey = h.name || h.field;
@@ -723,15 +863,33 @@ dmx.Component("datatable", {
     return '<div class="dmx-dt-action-wrap">' + buttons.join('') + '</div>';
   },
 
-  _getExportButtons: function () {
+  _getExportButtons: function (columns) {
     var opts = Array.isArray(this.props.export_options) ? this.props.export_options : [];
     var childButtons = [];
+    var exportOpts = null;
+
+    // Resolve export exclude fields to column indices
+    if (columns) {
+      var excludeSet = this._getExportColumnOptions();
+      if (excludeSet) {
+        var includeIndices = [];
+        columns.forEach(function (col, i) {
+          var key = col.name || col.data;
+          if (key && !excludeSet[key] && key !== '__actions__') {
+            includeIndices.push(i);
+          }
+        });
+        exportOpts = { columns: includeIndices };
+      }
+    }
 
     opts.forEach(function (opt) {
       if (!opt || opt.enabled === false || opt.enabled === 'false') return;
       var type = String(opt.type || '').toLowerCase();
       if (!type) return;
-      childButtons.push({ extend: type, text: opt.title || type.charAt(0).toUpperCase() + type.slice(1) });
+      var btn = { extend: type, text: opt.title || type.charAt(0).toUpperCase() + type.slice(1) };
+      if (exportOpts) btn.exportOptions = exportOpts;
+      childButtons.push(btn);
     });
 
     if (!childButtons.length) return [];
@@ -1039,6 +1197,92 @@ dmx.Component("datatable", {
       comp._updateFilterIconState(iconBtn, false);
       comp._closeActivePopup();
     });
+  },
+
+  _buildDropdownSearchInput: function (col, container, iconBtn, clearBtn) {
+    var comp = this;
+    var api = this._tableInstance;
+
+    var select = document.createElement('select');
+    select.className = 'dmx-dt-col-search dmx-dt-dropdown-search';
+
+    var allOpt = document.createElement('option');
+    allOpt.value = '';
+    allOpt.textContent = '-- All --';
+    select.appendChild(allOpt);
+
+    // Collect unique values from the column data
+    var colData = api.column(col.index()).data().toArray();
+    var uniqueVals = {};
+    colData.forEach(function (v) {
+      if (v === null || v === undefined || v === '') return;
+      var s = String(v).trim();
+      if (s && !uniqueVals[s]) uniqueVals[s] = true;
+    });
+    var sorted = Object.keys(uniqueVals).sort();
+    sorted.forEach(function (val) {
+      var opt = document.createElement('option');
+      opt.value = val;
+      opt.textContent = val;
+      select.appendChild(opt);
+    });
+
+    select.addEventListener('change', function () {
+      var val = select.value;
+      col.search(val ? 'txt:equals:' + val : '').draw();
+      if (iconBtn) comp._updateFilterIconState(iconBtn, !!val);
+    });
+    select.addEventListener('click', function (e) { e.stopPropagation(); });
+
+    if (clearBtn) {
+      clearBtn.addEventListener('click', function (e) {
+        e.stopPropagation();
+        select.value = '';
+        col.search('').draw();
+        if (iconBtn) comp._updateFilterIconState(iconBtn, false);
+        comp._closeActivePopup();
+      });
+    }
+
+    container.appendChild(select);
+  },
+
+  _buildBooleanSearchInput: function (col, container, iconBtn, clearBtn) {
+    var comp = this;
+
+    var select = document.createElement('select');
+    select.className = 'dmx-dt-col-search dmx-dt-boolean-search';
+
+    var opts = [
+      { value: '', label: '-- All --' },
+      { value: 'true', label: 'True' },
+      { value: 'false', label: 'False' }
+    ];
+    opts.forEach(function (o) {
+      var opt = document.createElement('option');
+      opt.value = o.value;
+      opt.textContent = o.label;
+      select.appendChild(opt);
+    });
+
+    select.addEventListener('change', function () {
+      var val = select.value;
+      col.search(val ? 'txt:equals:' + val : '').draw();
+      if (iconBtn) comp._updateFilterIconState(iconBtn, !!val);
+    });
+    select.addEventListener('click', function (e) { e.stopPropagation(); });
+
+    if (clearBtn) {
+      clearBtn.addEventListener('click', function (e) {
+        e.stopPropagation();
+        select.value = '';
+        col.search('').draw();
+        if (iconBtn) comp._updateFilterIconState(iconBtn, false);
+        comp._closeActivePopup();
+      });
+    }
+
+    container.appendChild(select);
   },
 
   _activeFilterPopup: null,
@@ -1363,6 +1607,10 @@ dmx.Component("datatable", {
         comp._buildDateSearchInput(col, popupBody);
       } else if (searchType === 'number') {
         comp._buildNumberSearchInput(col, popupBody);
+      } else if (searchType === 'dropdown') {
+        comp._buildDropdownSearchInput(col, popupBody, iconBtn, clearBtn);
+      } else if (searchType === 'boolean') {
+        comp._buildBooleanSearchInput(col, popupBody, iconBtn, clearBtn);
       } else {
         comp._buildTextSearchInput(col, popupBody, iconBtn, clearBtn);
       }
@@ -1522,6 +1770,77 @@ dmx.Component("datatable", {
         });
 
         wrapper.appendChild(textInput);
+        wrapper.appendChild(iconBtn);
+      } else if (searchType === 'dropdown') {
+        comp._buildDropdownSearchInput(col, popupBody, iconBtn, clearBtn);
+        var ddSelect = popupBody.querySelector('.dmx-dt-dropdown-search');
+
+        // Inline dropdown (same select, cloned into wrapper)
+        var inlineDD = document.createElement('select');
+        inlineDD.className = 'dmx-dt-inline-search dmx-dt-inline-dropdown';
+        // Copy options from popup select
+        if (ddSelect) {
+          for (var oi = 0; oi < ddSelect.options.length; oi++) {
+            var cloned = ddSelect.options[oi].cloneNode(true);
+            inlineDD.appendChild(cloned);
+          }
+        }
+
+        inlineDD.addEventListener('change', function () {
+          if (ddSelect) {
+            ddSelect.value = inlineDD.value;
+            ddSelect.dispatchEvent(new Event('change'));
+          }
+          comp._updateFilterIconState(iconBtn, !!inlineDD.value);
+        });
+        inlineDD.addEventListener('click', function (e) { e.stopPropagation(); });
+
+        if (ddSelect) {
+          ddSelect.addEventListener('change', function () {
+            inlineDD.value = ddSelect.value;
+          });
+        }
+
+        clearBtn.addEventListener('click', function () {
+          inlineDD.value = '';
+        });
+
+        wrapper.appendChild(inlineDD);
+        wrapper.appendChild(iconBtn);
+      } else if (searchType === 'boolean') {
+        comp._buildBooleanSearchInput(col, popupBody, iconBtn, clearBtn);
+        var boolSelect = popupBody.querySelector('.dmx-dt-boolean-search');
+
+        // Inline boolean select
+        var inlineBool = document.createElement('select');
+        inlineBool.className = 'dmx-dt-inline-search dmx-dt-inline-dropdown';
+        [{ value: '', label: '-- All --' }, { value: 'true', label: 'True' }, { value: 'false', label: 'False' }].forEach(function (o) {
+          var opt = document.createElement('option');
+          opt.value = o.value;
+          opt.textContent = o.label;
+          inlineBool.appendChild(opt);
+        });
+
+        inlineBool.addEventListener('change', function () {
+          if (boolSelect) {
+            boolSelect.value = inlineBool.value;
+            boolSelect.dispatchEvent(new Event('change'));
+          }
+          comp._updateFilterIconState(iconBtn, !!inlineBool.value);
+        });
+        inlineBool.addEventListener('click', function (e) { e.stopPropagation(); });
+
+        if (boolSelect) {
+          boolSelect.addEventListener('change', function () {
+            inlineBool.value = boolSelect.value;
+          });
+        }
+
+        clearBtn.addEventListener('click', function () {
+          inlineBool.value = '';
+        });
+
+        wrapper.appendChild(inlineBool);
         wrapper.appendChild(iconBtn);
       } else {
         // Number / date: build popup controls FIRST to capture refs, then inline input
@@ -1698,7 +2017,7 @@ dmx.Component("datatable", {
 
     this._tableEl.className = this.props.table_class || 'table table-striped table-bordered table-hover align-middle';
 
-    var exportButtons = this._getExportButtons();
+    var exportButtons = this._getExportButtons(columns);
 
     var options = {
       columns: columns,
@@ -1706,8 +2025,8 @@ dmx.Component("datatable", {
       ordering: true,
       paging: true,
       info: true,
-      pageLength: Number(this.props.page_size || 20),
-      lengthMenu: [10, 20, 50, 100],
+      pageLength: Number(this.props.page_length || this.props.page_size || 20),
+      lengthMenu: this._parseLengthMenu(),
       serverSide: true,
       processing: true,
       destroy: true,
@@ -1755,7 +2074,7 @@ dmx.Component("datatable", {
     options.ajax = function (dtRequest, callback) {
       var order = (dtRequest.order || [])[0] || {};
       var orderColumn = (dtRequest.columns || [])[order.column] || {};
-      var limit = Number(dtRequest.length || comp.props.page_size || 20);
+      var limit = Number(dtRequest.length || comp.props.page_length || comp.props.page_size || 20);
       var offset = Number(dtRequest.start || 0);
       var page = Math.floor(offset / (limit || 1)) + 1;
 
@@ -1837,6 +2156,26 @@ dmx.Component("datatable", {
       }
     }
 
+    // Apply saved column widths before creating the table
+    if (this.props.enable_column_resize) {
+      var savedWidths = this._loadColumnWidths();
+      if (savedWidths && Object.keys(savedWidths).length) {
+        options.columns.forEach(function (col) {
+          var key = col.name || col.data;
+          if (key && savedWidths[key]) {
+            col.width = savedWidths[key];
+          }
+        });
+      }
+    }
+
+    // RTL direction support
+    if (this.props.enable_rtl) {
+      this.$node.setAttribute('dir', 'rtl');
+    } else {
+      this.$node.removeAttribute('dir');
+    }
+
     this._tableInstance = new DataTable(this._tableEl, options);
 
     // Add footer row after DataTables init so it aligns with the final column order
@@ -1844,6 +2183,14 @@ dmx.Component("datatable", {
 
     if (this.props.enable_column_reorder) {
       this._setupColumnReorder();
+    }
+
+    if (this.props.enable_column_resize) {
+      this._setupColumnResize();
+    }
+
+    if (this.props.enable_row_highlight || this.props.enable_column_highlight) {
+      this._setupHighlight();
     }
 
     this._setupColumnSearch();
@@ -1861,7 +2208,21 @@ dmx.Component("datatable", {
       comp.set('id', row.id != null ? row.id : null);
       comp.set('data', Object.assign({}, row));
       comp.set('row', Object.assign({}, row));
-      console.log('Row Updated:', comp.get('row'));
+
+      // Multi-select handling
+      if (comp.props.enable_multi_select) {
+        var rowIdx = comp._tableInstance.row(tr).index();
+        if (typeof rowIdx !== 'undefined') {
+          if (comp._selectedRowIndices.has(rowIdx)) {
+            comp._selectedRowIndices.delete(rowIdx);
+            tr.classList.remove('dmx-dt-row-selected');
+          } else {
+            comp._selectedRowIndices.add(rowIdx);
+            tr.classList.add('dmx-dt-row-selected');
+          }
+          comp._updateSelectedRows();
+        }
+      }
 
       // Force Wappler reactivity to pick up nested property changes
       dmx.nextTick(function () {
@@ -1886,6 +2247,25 @@ dmx.Component("datatable", {
 
     this.set('count', parsed.rows.length);
     this.set('state', { tableReady: true, loading: false });
+  },
+
+  // ── Multi-Select ──
+
+  _updateSelectedRows: function () {
+    if (!this._tableInstance) {
+      this.set('selected_rows', []);
+      return;
+    }
+    var comp = this;
+    var selected = [];
+    this._selectedRowIndices.forEach(function (idx) {
+      try {
+        var data = comp._tableInstance.row(idx).data();
+        if (data) selected.push(JSON.parse(JSON.stringify(data)));
+      } catch (e) { }
+    });
+    this.set('selected_rows', selected);
+    this.dispatchEvent('selection_changed');
   },
 
   // ── Column Reorder ──
@@ -2054,5 +2434,198 @@ dmx.Component("datatable", {
 
     // Rebuild the table with new column order
     this._createTable();
+  },
+
+  // ── Column Resize ──
+
+  _getResizeStorageKey: function () {
+    var page = window.location.pathname;
+    var id = this.props.id || 'default';
+    return 'dmx-dt-col-widths::' + page + '::' + id;
+  },
+
+  _saveColumnWidths: function (widths) {
+    try {
+      localStorage.setItem(this._getResizeStorageKey(), JSON.stringify(widths));
+    } catch (e) { }
+  },
+
+  _loadColumnWidths: function () {
+    try {
+      var raw = localStorage.getItem(this._getResizeStorageKey());
+      if (raw) return JSON.parse(raw);
+    } catch (e) { }
+    return null;
+  },
+
+  _setupColumnResize: function () {
+    if (!this._tableInstance || !this._tableEl) return;
+
+    var comp = this;
+    var thead = this._tableEl.querySelector('thead');
+    if (!thead) return;
+
+    var headerRow = thead.querySelector('tr');
+    if (!headerRow) return;
+
+    var handles = [];
+    var isResizing = false;
+    var currentTh = null;
+    var startX = 0;
+    var startWidth = 0;
+
+    function getHeaderCells() {
+      return Array.prototype.slice.call(headerRow.querySelectorAll('th'));
+    }
+
+    function createHandle(th) {
+      var handle = document.createElement('div');
+      handle.className = 'dmx-dt-resize-handle';
+      th.style.position = 'relative';
+      th.appendChild(handle);
+      handles.push(handle);
+
+      handle.addEventListener('mousedown', function (e) {
+        e.preventDefault();
+        e.stopPropagation();
+        isResizing = true;
+        currentTh = th;
+        startX = e.pageX;
+        startWidth = th.offsetWidth;
+        document.body.style.cursor = 'col-resize';
+        document.body.style.userSelect = 'none';
+        th.classList.add('dmx-dt-resizing');
+      });
+    }
+
+    function onMouseMove(e) {
+      if (!isResizing || !currentTh) return;
+      var diff = e.pageX - startX;
+      var newWidth = Math.max(30, startWidth + diff);
+      currentTh.style.width = newWidth + 'px';
+      currentTh.style.minWidth = newWidth + 'px';
+    }
+
+    function onMouseUp() {
+      if (!isResizing) return;
+      isResizing = false;
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+      if (currentTh) {
+        currentTh.classList.remove('dmx-dt-resizing');
+      }
+      currentTh = null;
+
+      // Save all column widths to localStorage
+      var widths = {};
+      var cells = getHeaderCells();
+      var dtColumns = comp._tableInstance.settings()[0].aoColumns;
+      cells.forEach(function (th, i) {
+        if (dtColumns[i]) {
+          var key = dtColumns[i].sName || dtColumns[i].data || ('col_' + i);
+          widths[key] = th.style.width || (th.offsetWidth + 'px');
+        }
+      });
+      comp._saveColumnWidths(widths);
+    }
+
+    // Create resize handles on all header cells
+    getHeaderCells().forEach(function (th) {
+      createHandle(th);
+    });
+
+    document.addEventListener('mousemove', onMouseMove);
+    document.addEventListener('mouseup', onMouseUp);
+
+    this._resizeCleanup = function () {
+      document.removeEventListener('mousemove', onMouseMove);
+      document.removeEventListener('mouseup', onMouseUp);
+      handles.forEach(function (h) {
+        if (h.parentNode) h.parentNode.removeChild(h);
+      });
+      handles = [];
+    };
+  },
+
+  // ── Row & Column Highlight ──
+
+  _setupHighlight: function () {
+    if (!this._tableInstance || !this._tableEl) return;
+
+    var comp = this;
+    var table = this._tableInstance;
+    var enableRow = this.props.enable_row_highlight;
+    var enableCol = this.props.enable_column_highlight;
+
+    function onMouseEnter(e) {
+      var td = e.target.closest('td');
+      if (!td) return;
+
+      if (enableRow) {
+        var tr = td.closest('tr');
+        if (tr) tr.classList.add('dmx-dt-row-highlight');
+      }
+
+      if (enableCol) {
+        try {
+          var cellIndex = table.cell(td).index();
+          if (cellIndex) {
+            table.column(cellIndex.column).nodes().each(function (el) {
+              el.classList.add('dmx-dt-col-highlight');
+            });
+          }
+        } catch (ex) { }
+      }
+    }
+
+    function onMouseLeave(e) {
+      var td = e.target.closest('td');
+      if (!td) return;
+
+      if (enableRow) {
+        var tr = td.closest('tr');
+        if (tr) tr.classList.remove('dmx-dt-row-highlight');
+      }
+
+      if (enableCol) {
+        try {
+          var cellIndex = table.cell(td).index();
+          if (cellIndex) {
+            table.column(cellIndex.column).nodes().each(function (el) {
+              el.classList.remove('dmx-dt-col-highlight');
+            });
+          }
+        } catch (ex) { }
+      }
+    }
+
+    var tbody = this._tableEl.querySelector('tbody');
+    if (!tbody) return;
+
+    tbody.addEventListener('mouseenter', onMouseEnter, true);
+    tbody.addEventListener('mouseleave', onMouseLeave, true);
+
+    this._highlightCleanup = function () {
+      tbody.removeEventListener('mouseenter', onMouseEnter, true);
+      tbody.removeEventListener('mouseleave', onMouseLeave, true);
+    };
+  },
+
+  // ── Export Column Exclusion ──
+
+  _getExportColumnOptions: function () {
+    var raw = this.props.export_exclude_fields;
+    if (!raw || typeof raw !== 'string' || !raw.trim()) return null;
+
+    var excludeFields = raw.split(',').map(function (s) { return s.trim(); }).filter(Boolean);
+    if (!excludeFields.length) return null;
+
+    // Build set for quick lookup
+    var excludeSet = {};
+    excludeFields.forEach(function (f) { excludeSet[f] = true; });
+
+    // We return the excludeSet; actual index resolution happens in _createTable
+    // after columns are finalized
+    return excludeSet;
   }
 });
