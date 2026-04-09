@@ -28,6 +28,16 @@ dmx.Component("datatable", {
     state: {
       tableReady: false,
       loading: false
+    },
+    filters: {
+      global_search: '',
+      column_search: {}
+    },
+    edited_cell: {
+      field: '',
+      old_value: '',
+      new_value: '',
+      row_data: {}
     }
   },
 
@@ -68,7 +78,13 @@ dmx.Component("datatable", {
     },
     theme: { type: String, default: 'bootstrap5' },
     fields_header_advanced: { type: Array, default: [] },
-    export_exclude_fields: { type: String, default: '' }
+    export_exclude_fields: { type: String, default: '' },
+    editable_fields: { type: String, default: '' },
+    editable_cells: { type: Boolean, default: false },
+    editable_rows: { type: Boolean, default: false },
+    enable_selector_editors: { type: Boolean, default: false },
+    static_selectors: { type: Array, default: [] },
+    dynamic_selectors: { type: Array, default: [] }
   },
 
   methods: {
@@ -122,6 +138,25 @@ dmx.Component("datatable", {
       }
     },
 
+    getFilters: function () {
+      return this.get('filters') || { global_search: '', column_search: {} };
+    },
+
+    clearFilters: function () {
+      if (!this._tableInstance) return;
+      // Clear global search
+      this._tableInstance.search('');
+      // Clear all column searches
+      this._tableInstance.columns().every(function () {
+        this.search('');
+      });
+      this._tableInstance.draw();
+      // Reset filter UI inputs
+      this._clearFilterUI();
+      // Update exposed data
+      this.set('filters', { global_search: '', column_search: {} });
+    },
+
     getSelectedRows: function () {
       return this.get('selected_rows') || [];
     },
@@ -141,6 +176,7 @@ dmx.Component("datatable", {
     server_request: Event,
     row_clicked: Event,
     selection_changed: Event,
+    cell_edited: Event,
     action_1: Event,
     action_2: Event,
     action_3: Event,
@@ -174,6 +210,7 @@ dmx.Component("datatable", {
     this._resizeCleanup = null;
     this._highlightCleanup = null;
     this._selectedRowIndices = new Set();
+    this._activeEditor = null;
   },
 
   render: function () {
@@ -192,26 +229,7 @@ dmx.Component("datatable", {
   _parseData: function () {
     var raw = this.props.data;
 
-    // Handle new structure: { query: { ... } }
-    if (
-      raw &&
-      typeof raw === 'object' &&
-      raw.query &&
-      typeof raw.query === 'object' &&
-      Array.isArray(raw.query.data)
-    ) {
-      var q = raw.query;
-
-      return {
-        rows: q.data,
-        total: Number(q.total || q.data.length),
-        offset: Number(q.offset || 0),
-        limit: Number(q.limit || this.props.page_length || this.props.page_size || 20),
-        page: q.page || null
-      };
-    }
-
-    // Existing structure: { data: [...] }
+    // Structure: { data: [...], total, offset, limit, page }
     if (
       raw &&
       typeof raw === 'object' &&
@@ -265,7 +283,13 @@ dmx.Component("datatable", {
       updatedProps.has('enable_column_highlight') ||
       updatedProps.has('enable_multi_select') ||
       updatedProps.has('fields_header_advanced') ||
-      updatedProps.has('export_exclude_fields')
+      updatedProps.has('export_exclude_fields') ||
+      updatedProps.has('editable_fields') ||
+      updatedProps.has('editable_cells') ||
+      updatedProps.has('editable_rows') ||
+      updatedProps.has('enable_selector_editors') ||
+      updatedProps.has('static_selectors') ||
+      updatedProps.has('dynamic_selectors')
     ) {
       this._createTable();
       return;
@@ -333,6 +357,7 @@ dmx.Component("datatable", {
           columnSearch: currentParams.columnSearch || ''
         });
 
+        this._updateFiltersData();
         this.set('state', { tableReady: true, loading: false });
       }
     }
@@ -374,6 +399,12 @@ dmx.Component("datatable", {
       this._tableEl.removeEventListener('click', this._rowClickHandler);
       this._rowClickHandler = null;
     }
+
+    if (this._editDblClickHandler && this._tableEl) {
+      this._tableEl.removeEventListener('dblclick', this._editDblClickHandler);
+      this._editDblClickHandler = null;
+    }
+    this._activeEditor = null;
 
     if (this._tableInstance) {
       try {
@@ -1401,6 +1432,58 @@ dmx.Component("datatable", {
     oldPopups.forEach(function (el) { el.parentNode.removeChild(el); });
   },
 
+  _clearFilterUI: function () {
+    // Clear inline search inputs in the search row
+    var thead = this._tableEl ? this._tableEl.querySelector('thead') : null;
+    if (thead) {
+      var inputs = thead.querySelectorAll('.dmx-dt-col-search-row input, .dmx-dt-col-search-row select');
+      inputs.forEach(function (el) {
+        if (el.tagName === 'SELECT') el.selectedIndex = 0;
+        else el.value = '';
+      });
+    }
+    // Clear popup inputs
+    var popups = document.querySelectorAll('.dmx-dt-filter-popup[data-dmx-dt-id="' + (this.props.id || '') + '"]');
+    popups.forEach(function (popup) {
+      popup.querySelectorAll('input').forEach(function (inp) { inp.value = ''; });
+      popup.querySelectorAll('select').forEach(function (sel) { sel.selectedIndex = 0; });
+      var val2 = popup.querySelector('.dmx-dt-num-val2');
+      if (val2) val2.style.display = 'none';
+    });
+    // Clear global search input
+    var container = this._tableEl ? this._tableEl.closest('.dt-container') : null;
+    if (container) {
+      var globalInput = container.querySelector('input[type="search"]');
+      if (globalInput) globalInput.value = '';
+    }
+    // Reset all filter icon states
+    if (thead) {
+      thead.querySelectorAll('.dmx-dt-filter-active').forEach(function (el) {
+        el.classList.remove('dmx-dt-filter-active');
+      });
+    }
+    this._closeActivePopup();
+  },
+
+  _updateFiltersData: function () {
+    if (!this._tableInstance) return;
+    var globalSearch = this._tableInstance.search() || '';
+    var columnSearch = {};
+    var settings = this._tableInstance.settings()[0];
+    if (settings && settings.aoColumns) {
+      settings.aoColumns.forEach(function (col) {
+        if (col.sName && col.sName !== '__actions__') {
+          var searchVal = col.search ? col.search.search : '';
+          if (searchVal) columnSearch[col.sName] = searchVal;
+        }
+      });
+    }
+    this.set('filters', {
+      global_search: globalSearch,
+      column_search: columnSearch
+    });
+  },
+
   // ── Simple Column Search: Header mode (icon + popup with simple text input) ──
 
   _setupSimpleSearchHeader: function () {
@@ -1989,6 +2072,9 @@ dmx.Component("datatable", {
     var parsed = this._parseData();
     var columns = this._getColumns(parsed.rows);
 
+    // Apply selector label rendering to columns that have static/dynamic selectors
+    this._applySelectorRenders(columns);
+
     // If auto-detect is on but no data yet, don't create table — wait for data to arrive
     if (this.props.auto_detect_columns !== false && columns.length === 0 && parsed.rows.length === 0) {
       return;
@@ -2112,6 +2198,7 @@ dmx.Component("datatable", {
           columnSearch: Object.keys(colSearch).length ? JSON.stringify(colSearch) : ''
         });
 
+        comp._updateFiltersData();
         comp.set('state', { tableReady: true, loading: false });
         return;
       }
@@ -2137,6 +2224,7 @@ dmx.Component("datatable", {
         columnSearch: Object.keys(colSearch).length ? JSON.stringify(colSearch) : ''
       });
 
+      comp._updateFiltersData();
       comp.set('state', { tableReady: true, loading: true });
       comp.dispatchEvent('server_request');
     };
@@ -2194,6 +2282,8 @@ dmx.Component("datatable", {
     }
 
     this._setupColumnSearch();
+
+    this._setupInlineEditing();
 
     this._rowClickHandler = function (evt) {
       var tr = evt.target.closest('tr');
@@ -2627,5 +2717,343 @@ dmx.Component("datatable", {
     // We return the excludeSet; actual index resolution happens in _createTable
     // after columns are finalized
     return excludeSet;
+  },
+
+  // ── Inline Editing ──
+
+  _isFieldEditable: function (fieldName) {
+    if (!fieldName || fieldName === '__actions__') return false;
+    if (this.props.editable_cells) return true;
+    if (this.props.editable_fields) {
+      var fields = this.props.editable_fields.split(',').map(function (f) { return f.trim(); }).filter(Boolean);
+      return fields.indexOf(fieldName) !== -1;
+    }
+    return false;
+  },
+
+  _getStaticSelectorMap: function () {
+    var map = {};
+    var selectors = Array.isArray(this.props.static_selectors) ? this.props.static_selectors : [];
+    selectors.forEach(function (s) {
+      if (s && s.field && s.options) {
+        try {
+          map[s.field] = typeof s.options === 'string' ? JSON.parse(s.options) : s.options;
+        } catch (e) {
+          map[s.field] = {};
+        }
+      }
+    });
+    return map;
+  },
+
+  _getDynamicSelectorMap: function () {
+    var map = {};
+    var selectors = Array.isArray(this.props.dynamic_selectors) ? this.props.dynamic_selectors : [];
+    selectors.forEach(function (s) {
+      if (s && s.field && s.options_field) {
+        map[s.field] = s.options_field;
+      }
+    });
+    return map;
+  },
+
+  _applySelectorRenders: function (columns) {
+    if (!this.props.enable_selector_editors) return;
+    var staticMap = this._getStaticSelectorMap();
+    var dynamicMap = this._getDynamicSelectorMap();
+
+    columns.forEach(function (col) {
+      var fieldName = col.data;
+      if (!fieldName) return;
+
+      var hasStatic = staticMap[fieldName];
+      var hasDynamic = dynamicMap[fieldName];
+      if (!hasStatic && !hasDynamic) return;
+
+      var origRender = col.render;
+
+      if (hasStatic) {
+        var opts = staticMap[fieldName];
+        col.render = function (data, type, row, meta) {
+          if (type === 'display' || type === 'print') {
+            var key = data != null ? String(data) : '';
+            if (opts[key] != null) return opts[key];
+          }
+          if (origRender) return origRender(data, type, row, meta);
+          return data;
+        };
+      } else if (hasDynamic) {
+        var optionsField = dynamicMap[fieldName];
+        col.render = function (data, type, row, meta) {
+          if (type === 'display' || type === 'print') {
+            var dynOpts = row[optionsField];
+            if (dynOpts) {
+              try {
+                var parsed = typeof dynOpts === 'string' ? JSON.parse(dynOpts) : dynOpts;
+                var key = data != null ? String(data) : '';
+                if (parsed[key] != null) return parsed[key];
+              } catch (e) { /* skip */ }
+            }
+          }
+          if (origRender) return origRender(data, type, row, meta);
+          return data;
+        };
+      }
+    });
+  },
+
+  _setupInlineEditing: function () {
+    if (!this._tableEl || !this._tableInstance) return;
+    if (!this.props.editable_cells && !this.props.editable_fields && !this.props.editable_rows) return;
+
+    var comp = this;
+
+    this._editDblClickHandler = function (evt) {
+      var td = evt.target.closest('td');
+      if (!td) return;
+      // Don't edit if clicking inside an already active editor
+      if (td.querySelector('.dmx-dt-edit-input, .dmx-dt-edit-select')) return;
+
+      var tr = td.closest('tr');
+      if (!tr) return;
+
+      var dtRow = comp._tableInstance.row(tr);
+      if (!dtRow || !dtRow.data()) return;
+
+      var rowData = dtRow.data();
+      var cellIndex = comp._tableInstance.cell(td).index();
+      if (!cellIndex) return;
+
+      var colSettings = comp._tableInstance.settings()[0].aoColumns[cellIndex.column];
+      var fieldName = colSettings.mData || colSettings.sName || '';
+
+      if (comp.props.editable_rows) {
+        // Edit all editable cells in the row
+        comp._editRow(tr, dtRow, rowData);
+      } else {
+        // Edit single cell
+        if (!comp._isFieldEditable(fieldName)) return;
+        comp._editCell(td, dtRow, rowData, fieldName, cellIndex);
+      }
+    };
+
+    this._tableEl.addEventListener('dblclick', this._editDblClickHandler);
+  },
+
+  _editRow: function (tr, dtRow, rowData) {
+    var comp = this;
+    var cells = tr.querySelectorAll('td');
+
+    cells.forEach(function (td) {
+      // Skip if already has an editor
+      if (td.querySelector('.dmx-dt-edit-input, .dmx-dt-edit-select')) return;
+
+      var cellIndex = comp._tableInstance.cell(td).index();
+      if (!cellIndex) return;
+
+      var colSettings = comp._tableInstance.settings()[0].aoColumns[cellIndex.column];
+      var fieldName = colSettings.mData || colSettings.sName || '';
+
+      if (!fieldName || fieldName === '__actions__') return;
+
+      // In editable_rows mode, check editable_fields filter if set
+      if (comp.props.editable_fields) {
+        var fields = comp.props.editable_fields.split(',').map(function (f) { return f.trim(); }).filter(Boolean);
+        if (fields.length && fields.indexOf(fieldName) === -1) return;
+      }
+
+      comp._editCell(td, dtRow, rowData, fieldName, cellIndex, true);
+    });
+  },
+
+  _editCell: function (td, dtRow, rowData, fieldName, cellIndex, rowEditMode) {
+    var comp = this;
+    var currentValue = rowData[fieldName];
+    var oldValue = currentValue != null ? String(currentValue) : '';
+
+    // Check if this field has a selector editor
+    var selectorOptions = null;
+    if (comp.props.enable_selector_editors) {
+      // Check static selectors first
+      var staticMap = comp._getStaticSelectorMap();
+      if (staticMap[fieldName]) {
+        selectorOptions = staticMap[fieldName];
+      }
+
+      // Check dynamic selectors — value comes from the row data itself
+      if (!selectorOptions) {
+        var dynamicMap = comp._getDynamicSelectorMap();
+        if (dynamicMap[fieldName]) {
+          var optionsFieldName = dynamicMap[fieldName];
+          var dynamicOpts = rowData[optionsFieldName];
+          if (dynamicOpts) {
+            try {
+              selectorOptions = typeof dynamicOpts === 'string' ? JSON.parse(dynamicOpts) : dynamicOpts;
+            } catch (e) {
+              selectorOptions = null;
+            }
+          }
+        }
+      }
+    }
+
+    // Store original content for reverting
+    var originalHTML = td.innerHTML;
+    var tr = td.closest('tr');
+
+    if (selectorOptions) {
+      comp._createSelectEditor(td, dtRow, rowData, fieldName, oldValue, selectorOptions, originalHTML, rowEditMode, tr);
+    } else {
+      comp._createInputEditor(td, dtRow, rowData, fieldName, oldValue, originalHTML, rowEditMode, tr);
+    }
+  },
+
+  _createInputEditor: function (td, dtRow, rowData, fieldName, oldValue, originalHTML, rowEditMode, tr) {
+    var comp = this;
+    var input = document.createElement('input');
+    input.type = 'text';
+    input.className = 'dmx-dt-edit-input';
+    input.value = oldValue;
+
+    td.innerHTML = '';
+    td.appendChild(input);
+
+    if (!rowEditMode) {
+      input.focus();
+      input.select();
+    }
+
+    var committed = false;
+
+    function commit() {
+      if (committed) return;
+      committed = true;
+      var newValue = input.value;
+      comp._commitEdit(td, dtRow, rowData, fieldName, oldValue, newValue, originalHTML, rowEditMode);
+    }
+
+    function cancel() {
+      if (committed) return;
+      committed = true;
+      td.innerHTML = originalHTML;
+    }
+
+    input.addEventListener('blur', function () {
+      setTimeout(function () {
+        // In row-edit mode, don't commit if focus moved to another cell in the same row
+        if (rowEditMode && tr && tr.contains(document.activeElement)) return;
+        commit();
+      }, 100);
+    });
+
+    input.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        commit();
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
+        cancel();
+      }
+    });
+
+    // Prevent row click from firing when editing
+    input.addEventListener('click', function (e) { e.stopPropagation(); });
+  },
+
+  _createSelectEditor: function (td, dtRow, rowData, fieldName, oldValue, options, originalHTML, rowEditMode, tr) {
+    var comp = this;
+    var select = document.createElement('select');
+    select.className = 'dmx-dt-edit-select';
+
+    // Add empty option
+    var emptyOpt = document.createElement('option');
+    emptyOpt.value = '';
+    emptyOpt.textContent = '-- Select --';
+    select.appendChild(emptyOpt);
+
+    // options is an object like {"1": "Angie", "2": "Radar"}
+    Object.keys(options).forEach(function (key) {
+      var opt = document.createElement('option');
+      opt.value = key;
+      opt.textContent = options[key];
+      if (key === oldValue) opt.selected = true;
+      select.appendChild(opt);
+    });
+
+    td.innerHTML = '';
+    td.appendChild(select);
+
+    if (!rowEditMode) {
+      select.focus();
+    }
+
+    var committed = false;
+
+    function commit() {
+      if (committed) return;
+      committed = true;
+      var newValue = select.value;
+      var displayText = select.options[select.selectedIndex] ? select.options[select.selectedIndex].textContent : newValue;
+      comp._commitEdit(td, dtRow, rowData, fieldName, oldValue, newValue, originalHTML, rowEditMode, displayText);
+    }
+
+    function cancel() {
+      if (committed) return;
+      committed = true;
+      td.innerHTML = originalHTML;
+    }
+
+    select.addEventListener('change', function () {
+      commit();
+    });
+
+    select.addEventListener('blur', function () {
+      setTimeout(function () {
+        if (rowEditMode && tr && tr.contains(document.activeElement)) return;
+        commit();
+      }, 100);
+    });
+
+    select.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        cancel();
+      }
+    });
+
+    select.addEventListener('click', function (e) { e.stopPropagation(); });
+  },
+
+  _commitEdit: function (td, dtRow, rowData, fieldName, oldValue, newValue, originalHTML, rowEditMode, displayText) {
+    if (newValue === oldValue) {
+      // No change — restore original
+      td.innerHTML = originalHTML;
+      return;
+    }
+
+    // Update the row data in-place
+    rowData[fieldName] = newValue;
+
+    if (rowEditMode) {
+      // In row-edit mode, update just the cell display without re-rendering the entire row
+      td.textContent = displayText || newValue;
+    } else {
+      // Single cell mode: use DataTables API to update and re-render
+      dtRow.data(Object.assign({}, rowData));
+    }
+
+    // Expose edited cell data
+    this.set('edited_cell', {
+      field: fieldName,
+      old_value: oldValue,
+      new_value: newValue,
+      row_data: JSON.parse(JSON.stringify(rowData))
+    });
+
+    // Also update data/row for easy access
+    this.set('data', Object.assign({}, rowData));
+    this.set('row', Object.assign({}, rowData));
+
+    this.dispatchEvent('cell_edited');
   }
 });

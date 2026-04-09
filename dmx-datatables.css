@@ -753,3 +753,24 @@ div.dt-container .dt-processing {
 [dir="rtl"] .dmx-dt-action-wrap {
   direction: rtl;
 }
+
+/* ── Inline Editing ── */
+
+.dmx-dt-edit-input,
+.dmx-dt-edit-select {
+  width: 100%;
+  box-sizing: border-box;
+  font-size: 0.8125rem;
+  padding: 0.25rem 0.5rem;
+  background-color: var(--dmx-dt-popup-bg, #fff);
+  border: 2px solid var(--dmx-dt-accent, rgb(13, 110, 253));
+  border-radius: 0.25rem;
+  color: var(--dmx-dt-text, inherit);
+  outline: none;
+  transition: box-shadow 0.15s ease-in-out;
+}
+
+.dmx-dt-edit-input:focus,
+.dmx-dt-edit-select:focus {
+  box-shadow: 0 0 0 0.2rem var(--dmx-dt-accent-bg, rgba(13, 110, 253, 0.1));
+}

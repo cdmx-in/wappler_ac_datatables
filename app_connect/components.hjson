@@ -9,7 +9,7 @@
       "icon": "fa fa-lg fa-table",
       "state": "opened",
       "anyParent": true,
-      "template": "<div id=\"@@id@@\" is=\"dmx-datatable\"></div>",
+      "template": "<div class=\"card\"><div class=\"card-body\"><div id=\"@@id@@\" is=\"dmx-datatable\"></div></div></div>",
       "baseName": "datatable",
       "help": "DataTable component with auto-detection of paginated and array data sources",
       "dataPick": true,
@@ -42,6 +42,16 @@
         { "name": "state", "type": "object", "sub": [
           { "name": "tableReady", "type": "boolean" },
           { "name": "loading", "type": "boolean" }
+        ]},
+        { "name": "filters", "type": "object", "sub": [
+          { "name": "global_search", "type": "text" },
+          { "name": "column_search", "type": "object" }
+        ]},
+        { "name": "edited_cell", "type": "object", "sub": [
+          { "name": "field", "type": "text" },
+          { "name": "old_value", "type": "text" },
+          { "name": "new_value", "type": "text" },
+          { "name": "row_data", "type": "object" }
         ]}
       ],
       "actionsScheme": [
@@ -73,6 +83,8 @@
           ]
         },
         { "addTitle": "Get Selected Rows", "title": "Get Selected Rows", "name": "getSelectedRows", "icon": "fa fa-lg fa-check-square", "state": "opened", "help": "Returns all currently selected rows (requires Enable Multi Select)." },
+        { "addTitle": "Get Filters", "title": "Get Filters", "name": "getFilters", "icon": "fa fa-lg fa-filter", "state": "opened", "help": "Returns the current filter state including global search and column search values." },
+        { "addTitle": "Clear Filters", "title": "Clear Filters", "name": "clearFilters", "icon": "fa fa-lg fa-times-circle", "state": "opened", "help": "Clears all applied filters (global search and column search) and redraws the table." },
         { "addTitle": "Reset Column State", "title": "Reset Column State", "name": "resetColumnState", "icon": "fa fa-lg fa-undo", "state": "opened", "help": "Clears saved column order and column widths from localStorage and rebuilds the table." }
       ],
       "properties": [
@@ -331,6 +343,70 @@
             },
             { "name": "export_exclude_fields", "attribute": "export_exclude_fields", "title": "Exclude Fields from Export", "type": "text", "defaultValue": "", "help": "Comma-separated list of field names to exclude from export. These columns will not appear in exported files (CSV, Excel, PDF, etc.)." }
           ]
+        },
+        {
+          "group": "Inline Editing",
+          "variables": [
+            { "name": "editable_fields", "attribute": "editable_fields", "title": "Editable Fields", "type": "text", "defaultValue": "", "help": "Comma-separated list of field names that should be editable. Leave empty and enable Editable Cells to make all cells editable." },
+            { "name": "editable_cells", "attribute": "editable_cells", "title": "Editable Cells", "type": "boolean", "defaultValue": false, "help": "When enabled, all cells become editable on double-click." },
+            { "name": "editable_rows", "attribute": "editable_rows", "title": "Editable Rows", "type": "boolean", "defaultValue": false, "help": "When enabled, double-clicking any cell in a row makes all editable cells in that row editable at once." },
+            {
+              "name": "enable_selector_editors",
+              "attribute": "enable_selector_editors",
+              "title": "Configure Selector Editors",
+              "type": "boolean",
+              "defaultValue": false,
+              "display": "fieldset",
+              "show": ["static_selectors", "dynamic_selectors"],
+              "noChangeOnHide": true,
+              "groupEnabler": true,
+              "help": "Enable static and dynamic selector/dropdown editors for specific fields.",
+              "children": [
+                {
+                  "name": "static_selectors",
+                  "attribute": "dmx-bind:static_selectors",
+                  "title": "Static Selectors",
+                  "type": "grid",
+                  "jsonFormat": true,
+                  "encloseBT": true,
+                  "jsonBT": true,
+                  "dataBindings": true,
+                  "help": "Define static dropdown options for specific fields. Options is a JSON object like {\"1\": \"Angie\", \"2\": \"Radar\"}.",
+                  "defaultValue": [],
+                  "initDisplay": "none",
+                  "columns": [
+                    { "field": "field", "caption": "Field", "size": "40%", "editable": { "type": "text" } },
+                    { "field": "options", "caption": "Options (JSON)", "size": "60%", "editable": { "type": "datapicker" } }
+                  ],
+                  "newRecord": {
+                    "field": "",
+                    "options": ""
+                  }
+                },
+                {
+                  "name": "dynamic_selectors",
+                  "attribute": "dmx-bind:dynamic_selectors",
+                  "title": "Dynamic Selectors",
+                  "type": "grid",
+                  "jsonFormat": true,
+                  "encloseBT": true,
+                  "jsonBT": true,
+                  "dataBindings": true,
+                  "help": "Define dynamic dropdown options that come from a field in the row data. The Options Field should contain a JSON object like {\"1\": \"Angie\", \"2\": \"Radar\"} for each row.",
+                  "defaultValue": [],
+                  "initDisplay": "none",
+                  "columns": [
+                    { "field": "field", "caption": "Field", "size": "40%", "editable": { "type": "text" } },
+                    { "field": "options_field", "caption": "Options Field", "size": "60%", "editable": { "type": "datapicker" } }
+                  ],
+                  "newRecord": {
+                    "field": "",
+                    "options_field": ""
+                  }
+                }
+              ]
+            }
+          ]
         }
       ],
       "children": [],
@@ -498,6 +574,38 @@
           "title": "Action:",
           "type": "text",
           "help": "Choose the action to execute.",
+          "defaultValue": "",
+          "initDisplay": "none"
+        }
+      ],
+      "allowedOn": {
+        "dmx-datatable": true
+      }
+    },
+    {
+      "name": "dmx-datatable-cell-edited",
+      "attributeStartsWith": "dmx-on",
+      "attribute": "cell_edited",
+      "display": "fieldset",
+      "title": "Cell Edited",
+      "icon": "fa fa-lg fa-pencil-alt",
+      "groupTitle": "DataTable Events",
+      "groupIcon": "fa fa-lg fa-table",
+      "defaultValue": false,
+      "show": ["cellEditedAction"],
+      "noChangeOnHide": true,
+      "type": "boolean",
+      "groupEnabler": true,
+      "children": [
+        {
+          "name": "cellEditedAction",
+          "attributeStartsWith": "dmx-on",
+          "attribute": "cell_edited",
+          "isValue": true,
+          "actionsPicker": true,
+          "title": "Action:",
+          "type": "text",
+          "help": "Choose the action to execute when a cell is edited.",
           "defaultValue": "",
           "initDisplay": "none"
         }
