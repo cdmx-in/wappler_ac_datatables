@@ -85,7 +85,52 @@
         { "addTitle": "Get Selected Rows", "title": "Get Selected Rows", "name": "getSelectedRows", "icon": "fa fa-lg fa-check-square", "state": "opened", "help": "Returns all currently selected rows (requires Enable Multi Select)." },
         { "addTitle": "Get Filters", "title": "Get Filters", "name": "getFilters", "icon": "fa fa-lg fa-filter", "state": "opened", "help": "Returns the current filter state including global search and column search values." },
         { "addTitle": "Clear Filters", "title": "Clear Filters", "name": "clearFilters", "icon": "fa fa-lg fa-times-circle", "state": "opened", "help": "Clears all applied filters (global search and column search) and redraws the table." },
-        { "addTitle": "Reset Column State", "title": "Reset Column State", "name": "resetColumnState", "icon": "fa fa-lg fa-undo", "state": "opened", "help": "Clears saved column order and column widths from localStorage and rebuilds the table." }
+        { "addTitle": "Reset Column State", "title": "Reset Column State", "name": "resetColumnState", "icon": "fa fa-lg fa-undo", "state": "opened", "help": "Clears saved column order and column widths from localStorage and rebuilds the table." },
+        {
+          "addTitle": "Quick Filter",
+          "title": "Quick Filter",
+          "name": "quickFilter",
+          "icon": "fa fa-lg fa-search",
+          "state": "opened",
+          "help": "Set the global search input to a value and redraw the table.",
+          "properties": [
+            { "name": "value", "attribute": "value", "title": "Search Value", "type": "text", "defaultValue": "", "dataBindings": true, "help": "The search string to apply globally." }
+          ]
+        },
+        {
+          "addTitle": "Apply Filters",
+          "title": "Apply Filters",
+          "name": "applyFilters",
+          "icon": "fa fa-lg fa-filter",
+          "state": "opened",
+          "help": "Apply global and/or per-column search values programmatically, then redraw.",
+          "properties": [
+            { "name": "model", "attribute": "model", "title": "Filter Model", "type": "text", "defaultValue": "", "dataBindings": true, "help": "Object with optional global_search (string) and column_search (object keyed by field name) keys." }
+          ]
+        },
+        { "addTitle": "Get Filtered Data", "title": "Get Filtered Data", "name": "getFilteredData", "icon": "fa fa-lg fa-table", "state": "opened", "help": "Returns all rows that match the current filter state (client-side mode). In server-side mode, returns the current page data only." },
+        {
+          "addTitle": "Show Column",
+          "title": "Show Column",
+          "name": "showColumn",
+          "icon": "fa fa-lg fa-eye",
+          "state": "opened",
+          "help": "Make a hidden column visible by its field name.",
+          "properties": [
+            { "name": "fieldName", "attribute": "fieldName", "title": "Field Name", "type": "text", "defaultValue": "", "dataBindings": true, "help": "The field name (data key) of the column to show." }
+          ]
+        },
+        {
+          "addTitle": "Hide Column",
+          "title": "Hide Column",
+          "name": "hideColumn",
+          "icon": "fa fa-lg fa-eye-slash",
+          "state": "opened",
+          "help": "Hide a visible column by its field name.",
+          "properties": [
+            { "name": "fieldName", "attribute": "fieldName", "title": "Field Name", "type": "text", "defaultValue": "", "dataBindings": true, "help": "The field name (data key) of the column to hide." }
+          ]
+        }
       ],
       "properties": [
         {
@@ -102,7 +147,11 @@
             { "name": "enable_rtl", "attribute": "enable_rtl", "title": "Enable RTL", "type": "boolean", "defaultValue": false, "help": "Enable right-to-left text direction for the table. Useful for Arabic, Hebrew and other RTL languages." },
             { "name": "enable_row_highlight", "attribute": "enable_row_highlight", "title": "Enable Row Highlight", "type": "boolean", "defaultValue": false, "help": "Highlight the entire row on mouse hover." },
             { "name": "enable_column_highlight", "attribute": "enable_column_highlight", "title": "Enable Column Highlight", "type": "boolean", "defaultValue": false, "help": "Highlight the entire column on mouse hover." },
-            { "name": "enable_multi_select", "attribute": "enable_multi_select", "title": "Enable Multi Select", "type": "boolean", "defaultValue": false, "help": "Allow selecting multiple rows by clicking. Selected rows are exposed via the selected_rows data property." },
+            { "name": "enable_multi_select", "attribute": "enable_multi_select", "title": "Enable Multi Select", "type": "boolean", "defaultValue": false, "display": "fieldset", "show": ["checkbox_select"], "noChangeOnHide": true, "groupEnabler": true, "help": "Allow selecting multiple rows by clicking. Selected rows are exposed via the selected_rows data property.",
+              "children": [
+                { "name": "checkbox_select", "attribute": "checkbox_select", "title": "Use Checkbox Column", "type": "boolean", "defaultValue": false, "initDisplay": "none", "help": "Add a dedicated checkbox column as the first column for row selection. When enabled, rows are only selected by clicking their checkbox, not by clicking anywhere in the row." }
+              ]
+            },
             { "name": "theme", "attribute": "theme", "title": "Theme", "type": "droplist", "defaultValue": "bootstrap5", "values": [
               { "title": "Default", "value": "dataTables" },
               { "title": "Bootstrap 5", "value": "bootstrap5" },
@@ -115,6 +164,91 @@
           "variables": [
             { "name": "page_length", "attribute": "page_length", "title": "Page Length", "type": "number", "defaultValue": 20, "help": "Number of rows to display per page." },
             { "name": "length_menu", "attribute": "length_menu", "title": "Length Menu", "type": "text", "defaultValue": "10,20,50,100", "help": "Comma-separated list of page length options shown in the dropdown, e.g. 10,20,50,100" }
+          ]
+        },
+        {
+          "group": "Localisation",
+          "variables": [
+            { "name": "table_language", "attribute": "table_language", "title": "Table Language", "type": "text", "defaultValue": "", "help": "Translate the DataTables UI. Accepts a JSON object with partial overrides (e.g. {\"search\":\"Suchen:\",\"lengthMenu\":\"_MENU_ Zeilen\"}) or a URL to a DataTables translation JSON file (e.g. https://cdn.datatables.net/plug-ins/2.2.2/i18n/de-DE.json). Leave empty for English defaults." }
+          ]
+        },
+        {
+          "group": "Layout & Responsive",
+          "variables": [
+            {
+              "name": "enable_fixed_header",
+              "attribute": "enable_fixed_header",
+              "title": "Sticky Header",
+              "type": "boolean",
+              "defaultValue": false,
+              "display": "fieldset",
+              "show": ["fixed_header_top_offset"],
+              "noChangeOnHide": true,
+              "groupEnabler": true,
+              "help": "Keep the table header visible while scrolling down the page. Uses the FixedHeader extension (MIT, auto-loaded).",
+              "children": [
+                { "name": "fixed_header_top_offset", "attribute": "fixed_header_top_offset", "title": "Top Offset (px)", "type": "number", "defaultValue": 0, "initDisplay": "none", "help": "Offset in pixels from the top of the viewport when a fixed navbar is present, e.g. 56 for a standard Bootstrap navbar." }
+              ]
+            },
+            {
+              "name": "enable_responsive",
+              "attribute": "enable_responsive",
+              "title": "Responsive (auto-hide columns)",
+              "type": "boolean",
+              "defaultValue": false,
+              "display": "fieldset",
+              "show": ["responsive_details_type"],
+              "noChangeOnHide": true,
+              "groupEnabler": true,
+              "help": "Automatically hide low-priority columns on narrow screens using the Responsive extension (MIT, auto-loaded). Hidden column data can be shown inline or in a modal.",
+              "children": [
+                { "name": "responsive_details_type", "attribute": "responsive_details_type", "title": "Hidden Column Details", "type": "droplist", "defaultValue": "inline", "initDisplay": "none", "values": [
+                  { "title": "Inline (expand row)", "value": "inline" },
+                  { "title": "Column (below row)", "value": "column" },
+                  { "title": "None (hide silently)", "value": "none" }
+                ], "help": "How to display hidden column data on small screens." }
+              ]
+            },
+            {
+              "name": "enable_scroll_x",
+              "attribute": "enable_scroll_x",
+              "title": "Enable Horizontal Scroll",
+              "type": "boolean",
+              "defaultValue": false,
+              "help": "Enable horizontal scrolling of the table body. DataTables native scrollX option. Useful when columns overflow the container width."
+            },
+            {
+              "name": "scroll_y",
+              "attribute": "scroll_y",
+              "title": "Vertical Scroll Height",
+              "type": "text",
+              "defaultValue": "",
+              "help": "Fix the table body height and enable vertical scrolling. Enter a CSS height value, e.g. 400px or 60vh. DataTables native scrollY option. Leave empty to disable."
+            },
+            {
+              "name": "dark_mode",
+              "attribute": "dark_mode",
+              "title": "Dark Mode",
+              "type": "boolean",
+              "defaultValue": false,
+              "help": "Apply the built-in dark colour scheme to the table. All colours use CSS variables scoped to .dt-container so individual overrides still work."
+            },
+            {
+              "name": "wrap_header_text",
+              "attribute": "wrap_header_text",
+              "title": "Wrap Header Text",
+              "type": "boolean",
+              "defaultValue": false,
+              "help": "Allow long column header labels to wrap onto multiple lines. By default headers are kept on a single line (white-space: nowrap)."
+            },
+            {
+              "name": "enable_row_animate",
+              "attribute": "enable_row_animate",
+              "title": "Animate Row Entry",
+              "type": "boolean",
+              "defaultValue": false,
+              "help": "Apply a subtle fade-in / slide-down animation to rows each time the table redraws (page change, sort, filter)."
+            }
           ]
         },
         {
@@ -163,6 +297,18 @@
           ]
         },
         {
+          "group": "Search & Sort Defaults",
+          "variables": [
+            { "name": "default_sort_field", "attribute": "default_sort_field", "title": "Default Sort Field", "type": "text", "defaultValue": "", "help": "Field name to sort by on initial table load. Leave empty to use DataTables default (first column)." },
+            { "name": "default_sort_dir", "attribute": "default_sort_dir", "title": "Default Sort Direction", "type": "droplist", "defaultValue": "asc", "values": [
+              { "title": "Ascending", "value": "asc" },
+              { "title": "Descending", "value": "desc" }
+            ], "help": "Sort direction applied on initial load alongside Default Sort Field." },
+            { "name": "initial_global_search", "attribute": "initial_global_search", "title": "Initial Global Search", "type": "text", "defaultValue": "", "help": "Pre-populate the global search input when the table first loads. Clears on table rebuild." },
+            { "name": "initial_column_search", "attribute": "initial_column_search", "title": "Initial Column Search (JSON)", "type": "text", "defaultValue": "", "help": "JSON object of field-name → search-value pairs applied on initial load, e.g. {\"status\":\"active\",\"type\":\"admin\"}. Clears on table rebuild." }
+          ]
+        },
+        {
           "group": "Columns (Basic)",
           "variables": [
             { "name": "auto_detect_columns", "attribute": "auto_detect_columns", "title": "Auto Detect Columns", "type": "boolean", "defaultValue": true, "help": "When enabled, columns are automatically detected from the API response data. When disabled, use the Field Headers grid below to define columns manually." },
@@ -205,6 +351,22 @@
                 "search_type": "",
                 "isHidden": false
               }
+            },
+            {
+              "name": "column_groups",
+              "attribute": "dmx-bind:column_groups",
+              "title": "Column Groups",
+              "type": "grid",
+              "jsonFormat": true,
+              "encloseBT": true,
+              "jsonBT": true,
+              "help": "Add a spanning group header row above the column headers. Each row defines a group label and how many columns it spans (left to right). Spans must sum to the total visible column count (including Actions and Checkbox columns if enabled).",
+              "defaultValue": [],
+              "columns": [
+                { "field": "label", "caption": "Group Label", "size": "60%", "editable": { "type": "text" } },
+                { "field": "span", "caption": "Column Span", "size": "40%", "editable": { "type": "number" } }
+              ],
+              "newRecord": { "label": "", "span": 1 }
             }
           ]
         },
@@ -226,15 +388,19 @@
                 { "field": "field", "caption": "Field (data)", "size": "15%", "editable": { "type": "text" } },
                 { "field": "footer_value", "caption": "Footer Value", "size": "15%", "editable": { "type": "datapicker" } },
                 { "field": "render", "caption": "Render Function", "size": "20%", "editable": { "type": "text" }, "help": "Optional JS function string used as DataTables render callback, e.g. function(data,type,row){return '<b>'+data+'</b>';}" },
-                { "field": "width", "caption": "Width", "size": "10%", "editable": { "type": "text" } },
-                { "field": "className", "caption": "Class Name", "size": "15%", "editable": { "type": "text" } },
-                { "field": "external_data", "caption": "External Data", "size": "25%", "editable": { "type": "datapicker" } }
+                { "field": "width", "caption": "Width", "size": "8%", "editable": { "type": "text" } },
+                { "field": "min_width", "caption": "Min Width", "size": "8%", "editable": { "type": "text" }, "help": "Minimum column width, e.g. 80px" },
+                { "field": "max_width", "caption": "Max Width", "size": "8%", "editable": { "type": "text" }, "help": "Maximum column width, e.g. 200px" },
+                { "field": "className", "caption": "Class Name", "size": "12%", "editable": { "type": "text" } },
+                { "field": "external_data", "caption": "External Data", "size": "20%", "editable": { "type": "datapicker" } }
               ],
               "newRecord": {
                 "field": "",
                 "footer_value": "",
                 "render": "",
                 "width": "",
+                "min_width": "",
+                "max_width": "",
                 "className": "",
                 "external_data": ""
               }
@@ -251,7 +417,7 @@
               "type": "boolean",
               "defaultValue": false,
               "display": "fieldset",
-              "show": ["actions_column_position", "action_btns"],
+              "show": ["actions_column_position", "fix_actions_column", "actions_min_width", "actions_max_width", "action_btns"],
               "noChangeOnHide": true,
               "groupEnabler": true,
               "children": [
@@ -267,6 +433,9 @@
                     { "title": "Right", "value": "right" }
                   ]
                 },
+                { "name": "fix_actions_column", "attribute": "fix_actions_column", "title": "Pin Actions Column", "type": "boolean", "defaultValue": false, "initDisplay": "none", "help": "Pin the Actions column so it remains visible when scrolling horizontally. Requires scrollX to be enabled automatically. Only works when Actions Position is Right." },
+                { "name": "actions_min_width", "attribute": "actions_min_width", "title": "Actions Min Width", "type": "text", "defaultValue": "", "initDisplay": "none", "help": "Minimum width of the Actions column, e.g. 100px" },
+                { "name": "actions_max_width", "attribute": "actions_max_width", "title": "Actions Max Width", "type": "text", "defaultValue": "", "initDisplay": "none", "help": "Maximum width of the Actions column, e.g. 200px" },
                 {
                   "name": "action_btns",
                   "attribute": "dmx-bind:action_btns",
@@ -302,6 +471,12 @@
                 }
               ]
             }
+          ]
+        },
+        {
+          "group": "Column Pinning",
+          "variables": [
+            { "name": "fixed_columns_left", "attribute": "fixed_columns_left", "title": "Pin Columns Left", "type": "number", "defaultValue": 0, "help": "Number of columns to pin/freeze on the left side. Requires FixedColumns extension (auto-loaded). Set to 0 to disable. When active, scrollX is enabled automatically." }
           ]
         },
         {
@@ -463,6 +638,54 @@
         {
           "src": "dmx-datatables.css",
           "dst": "css/dmx-datatables.css"
+        },
+        {
+          "src": "fixedColumns.min.js",
+          "dst": "js/fixedColumns.min.js"
+        },
+        {
+          "src": "fixedColumns.dataTables.min.css",
+          "dst": "css/fixedColumns.dataTables.min.css"
+        },
+        {
+          "src": "fixedColumns.bootstrap5.min.css",
+          "dst": "css/fixedColumns.bootstrap5.min.css"
+        },
+        {
+          "src": "fixedColumns.bootstrap4.min.css",
+          "dst": "css/fixedColumns.bootstrap4.min.css"
+        },
+        {
+          "src": "fixedHeader.min.js",
+          "dst": "js/fixedHeader.min.js"
+        },
+        {
+          "src": "fixedHeader.dataTables.min.css",
+          "dst": "css/fixedHeader.dataTables.min.css"
+        },
+        {
+          "src": "fixedHeader.bootstrap5.min.css",
+          "dst": "css/fixedHeader.bootstrap5.min.css"
+        },
+        {
+          "src": "fixedHeader.bootstrap4.min.css",
+          "dst": "css/fixedHeader.bootstrap4.min.css"
+        },
+        {
+          "src": "responsive.min.js",
+          "dst": "js/responsive.min.js"
+        },
+        {
+          "src": "responsive.dataTables.min.css",
+          "dst": "css/responsive.dataTables.min.css"
+        },
+        {
+          "src": "responsive.bootstrap5.min.css",
+          "dst": "css/responsive.bootstrap5.min.css"
+        },
+        {
+          "src": "responsive.bootstrap4.min.css",
+          "dst": "css/responsive.bootstrap4.min.css"
         }
       ],
       "linkFiles": [

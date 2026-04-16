@@ -23,7 +23,8 @@ dmx.Component("datatable", {
       sort: '',
       dir: 'asc',
       search: '',
-      columnSearch: ''
+      columnSearch: '',
+      columnSearchOps: ''
     },
     state: {
       tableReady: false,
@@ -67,6 +68,7 @@ dmx.Component("datatable", {
     enable_row_highlight: { type: Boolean, default: false },
     enable_column_highlight: { type: Boolean, default: false },
     enable_multi_select: { type: Boolean, default: false },
+    checkbox_select: { type: Boolean, default: false },
     export_options: {
       type: Array, default: [
         { "enabled": false, "type": "copy", "title": "Copy" },
@@ -84,7 +86,26 @@ dmx.Component("datatable", {
     editable_rows: { type: Boolean, default: false },
     enable_selector_editors: { type: Boolean, default: false },
     static_selectors: { type: Array, default: [] },
-    dynamic_selectors: { type: Array, default: [] }
+    dynamic_selectors: { type: Array, default: [] },
+    default_sort_field: { type: String, default: '' },
+    default_sort_dir: { type: String, default: 'asc' },
+    initial_global_search: { type: String, default: '' },
+    initial_column_search: { type: String, default: '' },
+    fixed_columns_left: { type: Number, default: 0 },
+    fix_actions_column: { type: Boolean, default: false },
+    actions_min_width: { type: String, default: '' },
+    actions_max_width: { type: String, default: '' },
+    column_groups: { type: Array, default: [] },
+    table_language: { type: String, default: '' },
+    enable_fixed_header: { type: Boolean, default: false },
+    fixed_header_top_offset: { type: Number, default: 0 },
+    enable_responsive: { type: Boolean, default: false },
+    responsive_details_type: { type: String, default: 'inline' },
+    dark_mode: { type: Boolean, default: false },
+    wrap_header_text: { type: Boolean, default: false },
+    enable_row_animate: { type: Boolean, default: false },
+    enable_scroll_x: { type: Boolean, default: false },
+    scroll_y: { type: String, default: '' }
   },
 
   methods: {
@@ -150,6 +171,7 @@ dmx.Component("datatable", {
       this._tableInstance.columns().every(function () {
         this.search('');
       });
+      this._colSearchOps = {};
       this._tableInstance.draw();
       // Reset filter UI inputs
       this._clearFilterUI();
@@ -169,6 +191,51 @@ dmx.Component("datatable", {
         localStorage.removeItem(this._getResizeStorageKey());
       } catch (e) { }
       this._createTable();
+    },
+
+    quickFilter: function (value) {
+      if (!this._tableInstance) return;
+      this._tableInstance.search(value != null ? String(value) : '').draw();
+      this._updateFiltersData();
+    },
+
+    getFilteredData: function () {
+      if (!this._tableInstance) return [];
+      return this._tableInstance.rows({ search: 'applied' }).data().toArray();
+    },
+
+    applyFilters: function (model) {
+      if (!this._tableInstance || !model || typeof model !== 'object') return;
+      if (model.global_search !== undefined) {
+        this._tableInstance.search(String(model.global_search || ''));
+        var container = this._tableEl ? this._tableEl.closest('.dt-container') : null;
+        if (container) {
+          var globalInput = container.querySelector('input[type="search"]');
+          if (globalInput) globalInput.value = String(model.global_search || '');
+        }
+      }
+      if (model.column_search && typeof model.column_search === 'object') {
+        var colSearch = model.column_search;
+        this._tableInstance.columns().every(function () {
+          var colName = this.dataSrc();
+          if (colName != null && colSearch[colName] !== undefined) {
+            this.search(String(colSearch[colName] || ''));
+          }
+        });
+      }
+      this._tableInstance.draw();
+      this._syncColumnSearchUI();
+      this._updateFiltersData();
+    },
+
+    showColumn: function (fieldName) {
+      if (!this._tableInstance || !fieldName) return;
+      this._tableInstance.column('[name="' + fieldName + '"]').visible(true);
+    },
+
+    hideColumn: function (fieldName) {
+      if (!this._tableInstance || !fieldName) return;
+      this._tableInstance.column('[name="' + fieldName + '"]').visible(false);
     }
   },
 
@@ -210,6 +277,7 @@ dmx.Component("datatable", {
     this._resizeCleanup = null;
     this._highlightCleanup = null;
     this._selectedRowIndices = new Set();
+    this._selectAllHandler = null;
     this._activeEditor = null;
   },
 
@@ -282,6 +350,7 @@ dmx.Component("datatable", {
       updatedProps.has('enable_row_highlight') ||
       updatedProps.has('enable_column_highlight') ||
       updatedProps.has('enable_multi_select') ||
+      updatedProps.has('checkbox_select') ||
       updatedProps.has('fields_header_advanced') ||
       updatedProps.has('export_exclude_fields') ||
       updatedProps.has('editable_fields') ||
@@ -289,7 +358,26 @@ dmx.Component("datatable", {
       updatedProps.has('editable_rows') ||
       updatedProps.has('enable_selector_editors') ||
       updatedProps.has('static_selectors') ||
-      updatedProps.has('dynamic_selectors')
+      updatedProps.has('dynamic_selectors') ||
+      updatedProps.has('default_sort_field') ||
+      updatedProps.has('default_sort_dir') ||
+      updatedProps.has('initial_global_search') ||
+      updatedProps.has('initial_column_search') ||
+      updatedProps.has('fixed_columns_left') ||
+      updatedProps.has('fix_actions_column') ||
+      updatedProps.has('actions_min_width') ||
+      updatedProps.has('actions_max_width') ||
+      updatedProps.has('table_language') ||
+      updatedProps.has('enable_fixed_header') ||
+      updatedProps.has('fixed_header_top_offset') ||
+      updatedProps.has('enable_responsive') ||
+      updatedProps.has('responsive_details_type') ||
+      updatedProps.has('column_groups') ||
+      updatedProps.has('dark_mode') ||
+      updatedProps.has('wrap_header_text') ||
+      updatedProps.has('enable_row_animate') ||
+      updatedProps.has('enable_scroll_x') ||
+      updatedProps.has('scroll_y')
     ) {
       this._createTable();
       return;
@@ -400,6 +488,11 @@ dmx.Component("datatable", {
       this._rowClickHandler = null;
     }
 
+    if (this._selectAllHandler && this._tableEl) {
+      this._tableEl.removeEventListener('click', this._selectAllHandler);
+      this._selectAllHandler = null;
+    }
+
     if (this._editDblClickHandler && this._tableEl) {
       this._tableEl.removeEventListener('dblclick', this._editDblClickHandler);
       this._editDblClickHandler = null;
@@ -433,6 +526,71 @@ dmx.Component("datatable", {
     });
     this._themeElements = [];
     this._loadedTheme = null;
+  },
+
+  _loadExtension: function (name) {
+    var flagKey = '_ext_' + name + '_loaded';
+    if (this[flagKey]) return;
+    var base = this._getBasePath();
+    var theme = this._loadedTheme || 'bootstrap5';
+    var head = document.head;
+
+    var css = document.createElement('link');
+    css.rel = 'stylesheet';
+    css.href = base + 'css/' + name + '.' + theme + '.min.css';
+    css.setAttribute('data-dmx-dt-ext', name);
+    head.appendChild(css);
+
+    var js = document.createElement('script');
+    js.src = base + 'js/' + name + '.min.js';
+    js.setAttribute('data-dmx-dt-ext', name);
+    head.appendChild(js);
+
+    this[flagKey] = true;
+  },
+
+  _loadFixedColumns: function () {
+    this._loadExtension('fixedColumns');
+  },
+
+  // Build a multi-row <thead> for column groups (3.2).
+  // Row 1: group header cells with colspan; Row 2: regular header cells (DataTables populates titles).
+  _buildGroupedHeader: function (columns, groups) {
+    var totalCols = columns.length;
+    if (!groups || groups.length === 0) return;
+
+    // Normalise spans — ensure positive integers summing exactly to totalCols
+    var spans = groups.map(function (g) { return Math.max(1, Number(g.span) || 1); });
+    var spanSum = spans.reduce(function (a, b) { return a + b; }, 0);
+    if (spanSum !== totalCols && spans.length > 0) {
+      spans[spans.length - 1] = Math.max(1, spans[spans.length - 1] + (totalCols - spanSum));
+    }
+
+    // Group header row
+    var groupTr = document.createElement('tr');
+    groupTr.className = 'dmx-dt-col-groups';
+    groups.forEach(function (g, i) {
+      var th = document.createElement('th');
+      th.textContent = g.label || '';
+      th.colSpan = spans[i];
+      groupTr.appendChild(th);
+    });
+
+    // Regular header row — empty <th> elements; DataTables will fill in column titles + sort icons
+    var headerTr = document.createElement('tr');
+    for (var c = 0; c < totalCols; c++) {
+      headerTr.appendChild(document.createElement('th'));
+    }
+
+    var thead = document.createElement('thead');
+    thead.appendChild(groupTr);
+    thead.appendChild(headerTr);
+
+    var existingThead = this._tableEl.querySelector('thead');
+    if (existingThead) {
+      this._tableEl.removeChild(existingThead);
+    }
+    this._tableEl.appendChild(thead);
   },
 
   _loadTheme: function (theme) {
@@ -668,6 +826,24 @@ dmx.Component("datatable", {
       }
     }
     if (adv.width != null && adv.width !== '') col.width = adv.width;
+    if (adv.min_width != null && adv.min_width !== '') {
+      col.minWidth = adv.min_width;
+      (function (minW, prevCreatedCell) {
+        col.createdCell = function (td) {
+          td.style.minWidth = minW;
+          if (prevCreatedCell) prevCreatedCell.apply(this, arguments);
+        };
+      })(adv.min_width, col.createdCell || null);
+    }
+    if (adv.max_width != null && adv.max_width !== '') {
+      col.maxWidth = adv.max_width;
+      (function (maxW, prevCreatedCell) {
+        col.createdCell = function (td) {
+          td.style.maxWidth = maxW;
+          if (prevCreatedCell) prevCreatedCell.apply(this, arguments);
+        };
+      })(adv.max_width, col.createdCell || null);
+    }
     if (adv.className != null && adv.className !== '') col.className = adv.className;
     if (adv.external_data != null && adv.external_data !== '') col.externalData = adv.external_data;
   },
@@ -906,7 +1082,7 @@ dmx.Component("datatable", {
         var includeIndices = [];
         columns.forEach(function (col, i) {
           var key = col.name || col.data;
-          if (key && !excludeSet[key] && key !== '__actions__') {
+          if (key && !excludeSet[key] && key !== '__actions__' && key !== '__checkbox__') {
             includeIndices.push(i);
           }
         });
@@ -1484,6 +1660,51 @@ dmx.Component("datatable", {
     });
   },
 
+  // Syncs column search UI (row inputs or header icons) to match the current DataTables
+  // column search state. Called after applying initial_column_search or applyFilters().
+  _syncColumnSearchUI: function () {
+    if (!this._tableInstance || !this.props.enable_column_search) return;
+    var comp = this;
+    var position = (this.props.column_search_position || 'header').toLowerCase();
+
+    if (position === 'row') {
+      var mode = (comp.props.column_search_mode || 'simple').toLowerCase();
+      var searchRow = this._tableEl ? this._tableEl.querySelector('.dmx-dt-col-search-row') : null;
+      if (!searchRow) return;
+      this._tableInstance.columns().every(function () {
+        var currentSearch = this.search() || '';
+        var th = searchRow.children[this.index()];
+        if (!th) return;
+        if (mode === 'advanced') {
+          var colSettings = comp._tableInstance.settings()[0].aoColumns[this.index()];
+          var colField = colSettings ? (colSettings.sName || this.dataSrc()) : this.dataSrc();
+          var opSel = th.querySelector('.dmx-dt-adv-row-op');
+          var valInp = th.querySelector('.dmx-dt-col-search');
+          if (opSel && valInp) {
+            valInp.value = currentSearch;
+            var savedOp = comp._colSearchOps && colField ? comp._colSearchOps[colField] : null;
+            if (savedOp) opSel.value = savedOp;
+          }
+        } else {
+          var input = th.querySelector('.dmx-dt-col-search');
+          if (input && input.tagName === 'INPUT' && input.value !== currentSearch) {
+            input.value = currentSearch;
+          }
+        }
+      });
+    } else {
+      // Header / popup mode: update filter icon active states
+      this._tableInstance.columns().every(function () {
+        var currentSearch = this.search() || '';
+        var headerEl = this.header();
+        if (!headerEl) return;
+        var iconBtn = headerEl.querySelector('.dmx-dt-filter-icon');
+        if (iconBtn) comp._updateFilterIconState(iconBtn, !!currentSearch);
+      });
+    }
+    this._updateFiltersData();
+  },
+
   // ── Simple Column Search: Header mode (icon + popup with simple text input) ──
 
   _setupSimpleSearchHeader: function () {
@@ -1728,7 +1949,7 @@ dmx.Component("datatable", {
         e.stopPropagation();
         e.preventDefault();
         if (comp._activeFilterPopup === popup) {
-          comp._closeActivePopup();
+          comp._closeActivePopup( );
         } else {
           comp._openFilterPopup(popup, iconBtn);
         }
@@ -1765,6 +1986,14 @@ dmx.Component("datatable", {
     var searchRow = document.createElement('tr');
     searchRow.className = 'dmx-dt-col-search-row';
 
+    var operators = [
+      { value: 'contains',    label: 'Contains' },
+      { value: 'notContains', label: 'Not contains' },
+      { value: 'equals',      label: 'Equals' },
+      { value: 'startsWith',  label: 'Starts with' },
+      { value: 'endsWith',    label: 'Ends with' }
+    ];
+
     api.columns().every(function () {
       var col = this;
       var colName = col.dataSrc();
@@ -1777,283 +2006,54 @@ dmx.Component("datatable", {
         return;
       }
 
-      var headerEl = col.header();
-      var colTitle = (headerEl.querySelector('.dmx-dt-header-content') || headerEl).textContent.trim();
-      var searchType = comp._getSearchTypeForColumn(colSettings.sName || colName);
+      var colTitle = col.header().textContent.trim();
 
-      // ── Build popup ──
-      var popup = document.createElement('div');
-      popup.className = 'dmx-dt-filter-popup';
-      popup.setAttribute('data-dmx-dt-id', comp.props.id || '');
-
-      var popupHeader = document.createElement('div');
-      popupHeader.className = 'dmx-dt-filter-popup-header';
-      popupHeader.innerHTML = '<span>Filter: ' + comp._escapeAttr(colTitle) + '</span>';
-
-      var clearBtn = document.createElement('button');
-      clearBtn.type = 'button';
-      clearBtn.className = 'dmx-dt-filter-clear-btn';
-      clearBtn.textContent = 'Clear';
-      popupHeader.appendChild(clearBtn);
-      popup.appendChild(popupHeader);
-
-      var popupBody = document.createElement('div');
-      popupBody.className = 'dmx-dt-filter-popup-body';
-
-      // ── Icon button ──
-      var iconBtn = document.createElement('span');
-      iconBtn.className = 'dmx-dt-filter-icon';
-      iconBtn.title = 'Advanced filter: ' + colTitle;
-      iconBtn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" width="14" height="14" fill="currentColor"><path d="M1.5 1.5A.5.5 0 0 1 2 1h12a.5.5 0 0 1 .5.5v2a.5.5 0 0 1-.128.334L10 8.692V13.5a.5.5 0 0 1-.342.474l-3 1A.5.5 0 0 1 6 14.5V8.692L1.628 3.834A.5.5 0 0 1 1.5 3.5v-2z"/></svg>';
-
-      // ── Cell wrapper ──
-      var wrapper = document.createElement('div');
-      wrapper.className = 'dmx-dt-adv-row-cell';
-
-      if (searchType === 'text') {
-        // Build popup first so triggerSearch is wired before we reference its elements
-        comp._buildTextSearchInput(col, popupBody, iconBtn, clearBtn);
-        var popupCond1Val = popupBody.querySelector('.dmx-dt-text-val');
-
-        // Inline quick-search input (shows alongside the icon)
-        var textInput = document.createElement('input');
-        textInput.type = 'text';
-        textInput.className = 'dmx-dt-inline-search';
-        textInput.placeholder = colTitle;
-
-        textInput.addEventListener('input', function () {
-          if (popupCond1Val) {
-            // Set the popup's first-condition value and let popup's
-            // own triggerSearch handle the draw — ensures consistent
-            // txt:contains:VALUE format sent to the server.
-            popupCond1Val.value = textInput.value;
-            popupCond1Val.dispatchEvent(new Event('input'));
-          } else {
-            col.search(textInput.value ? 'txt:contains:' + textInput.value : '').draw();
-            comp._updateFilterIconState(iconBtn, !!textInput.value);
-          }
-        });
-        textInput.addEventListener('click', function (e) { e.stopPropagation(); });
-
-        // Popup → inline: mirror cond1 value back so inline stays in sync
-        if (popupCond1Val) {
-          popupCond1Val.addEventListener('input', function () {
-            // Only reflect when the operator is 'contains' (default); otherwise
-            // the inline would show a misleading value for e.g. 'startsWith'.
-            var op1El = popupBody.querySelector('.dmx-dt-text-op');
-            var op = op1El ? op1El.value : 'contains';
-            textInput.value = (op === 'contains') ? popupCond1Val.value : '';
-          });
-        }
-
-        // clearBtn already resets popup fields via _buildTextSearchInput;
-        // also reset inline here.
-        clearBtn.addEventListener('click', function () {
-          textInput.value = '';
-        });
-
-        wrapper.appendChild(textInput);
-        wrapper.appendChild(iconBtn);
-      } else if (searchType === 'dropdown') {
-        comp._buildDropdownSearchInput(col, popupBody, iconBtn, clearBtn);
-        var ddSelect = popupBody.querySelector('.dmx-dt-dropdown-search');
-
-        // Inline dropdown (same select, cloned into wrapper)
-        var inlineDD = document.createElement('select');
-        inlineDD.className = 'dmx-dt-inline-search dmx-dt-inline-dropdown';
-        // Copy options from popup select
-        if (ddSelect) {
-          for (var oi = 0; oi < ddSelect.options.length; oi++) {
-            var cloned = ddSelect.options[oi].cloneNode(true);
-            inlineDD.appendChild(cloned);
-          }
-        }
-
-        inlineDD.addEventListener('change', function () {
-          if (ddSelect) {
-            ddSelect.value = inlineDD.value;
-            ddSelect.dispatchEvent(new Event('change'));
-          }
-          comp._updateFilterIconState(iconBtn, !!inlineDD.value);
-        });
-        inlineDD.addEventListener('click', function (e) { e.stopPropagation(); });
-
-        if (ddSelect) {
-          ddSelect.addEventListener('change', function () {
-            inlineDD.value = ddSelect.value;
-          });
-        }
-
-        clearBtn.addEventListener('click', function () {
-          inlineDD.value = '';
-        });
-
-        wrapper.appendChild(inlineDD);
-        wrapper.appendChild(iconBtn);
-      } else if (searchType === 'boolean') {
-        comp._buildBooleanSearchInput(col, popupBody, iconBtn, clearBtn);
-        var boolSelect = popupBody.querySelector('.dmx-dt-boolean-search');
-
-        // Inline boolean select
-        var inlineBool = document.createElement('select');
-        inlineBool.className = 'dmx-dt-inline-search dmx-dt-inline-dropdown';
-        [{ value: '', label: '-- All --' }, { value: 'true', label: 'True' }, { value: 'false', label: 'False' }].forEach(function (o) {
-          var opt = document.createElement('option');
-          opt.value = o.value;
-          opt.textContent = o.label;
-          inlineBool.appendChild(opt);
-        });
-
-        inlineBool.addEventListener('change', function () {
-          if (boolSelect) {
-            boolSelect.value = inlineBool.value;
-            boolSelect.dispatchEvent(new Event('change'));
-          }
-          comp._updateFilterIconState(iconBtn, !!inlineBool.value);
-        });
-        inlineBool.addEventListener('click', function (e) { e.stopPropagation(); });
-
-        if (boolSelect) {
-          boolSelect.addEventListener('change', function () {
-            inlineBool.value = boolSelect.value;
-          });
-        }
-
-        clearBtn.addEventListener('click', function () {
-          inlineBool.value = '';
-        });
-
-        wrapper.appendChild(inlineBool);
-        wrapper.appendChild(iconBtn);
-      } else {
-        // Number / date: build popup controls FIRST to capture refs, then inline input
-
-        if (searchType === 'date') {
-          comp._buildDateSearchInput(col, popupBody);
-        } else {
-          comp._buildNumberSearchInput(col, popupBody);
-        }
-
-        if (searchType === 'number') {
-          var popupOpSel = popupBody.querySelector('select');
-          var popupNumVal = popupBody.querySelector('input[type="number"]:not(.dmx-dt-num-val2)');
-
-          var numInput = document.createElement('input');
-          numInput.type = 'number';
-          numInput.className = 'dmx-dt-inline-search';
-          numInput.placeholder = colTitle;
-
-          var numDebounce;
-          numInput.addEventListener('input', function () {
-            clearTimeout(numDebounce);
-            numDebounce = setTimeout(function () {
-              // Delegate to popup's own triggerSearch (same pattern as text)
-              // so the draw is fired from the same code path as the popup.
-              if (popupOpSel)  popupOpSel.value = numInput.value !== '' ? 'eq' : '';
-              if (popupNumVal) {
-                popupNumVal.value = numInput.value;
-                popupNumVal.dispatchEvent(new Event('input'));
-              }
-              comp._updateFilterIconState(iconBtn, !!numInput.value);
-            }, 300);
-          });
-          numInput.addEventListener('click', function (e) { e.stopPropagation(); });
-
-          // Popup → inline: sync back only when op is 'eq' so inline stays meaningful
-          if (popupNumVal) {
-            popupNumVal.addEventListener('input', function () {
-              var op = popupOpSel ? popupOpSel.value : '';
-              numInput.value = (op === 'eq' || op === '') ? popupNumVal.value : '';
-              comp._updateFilterIconState(iconBtn, !!col.search());
-            });
-          }
-          if (popupOpSel) {
-            popupOpSel.addEventListener('change', function () {
-              if (popupOpSel.value !== 'eq') numInput.value = '';
-            });
-          }
-
-          clearBtn.addEventListener('click', function (e) {
-            e.stopPropagation();
-            numInput.value = '';
-            popupBody.querySelectorAll('input').forEach(function (inp) { inp.value = ''; });
-            popupBody.querySelectorAll('select').forEach(function (sel) { sel.selectedIndex = 0; });
-            var val2 = popupBody.querySelector('.dmx-dt-num-val2');
-            if (val2) val2.style.display = 'none';
-            col.search('').draw();
-            comp._updateFilterIconState(iconBtn, false);
-            comp._closeActivePopup();
-          });
-
-          wrapper.appendChild(numInput);
-
-        } else if (searchType === 'date') {
-          var popupFromInp = popupBody.querySelector('input[title="From date"]');
-          var popupToInp = popupBody.querySelector('input[title="To date"]');
-
-          var dateInput = document.createElement('input');
-          dateInput.type = 'date';
-          dateInput.className = 'dmx-dt-inline-search';
-          dateInput.title = colTitle;
-
-          var dateDebounce;
-          dateInput.addEventListener('change', function () {
-            clearTimeout(dateDebounce);
-            dateDebounce = setTimeout(function () {
-              // Delegate to popup's own triggerSearch via dispatchEvent
-              if (popupFromInp) {
-                popupFromInp.value = dateInput.value ? dateInput.value + 'T00:00' : '';
-                popupFromInp.dispatchEvent(new Event('change'));
-              }
-              if (popupToInp) {
-                popupToInp.value = dateInput.value ? dateInput.value + 'T23:59' : '';
-                popupToInp.dispatchEvent(new Event('change'));
-              }
-              comp._updateFilterIconState(iconBtn, !!dateInput.value);
-            }, 100);
-          });
-          dateInput.addEventListener('click', function (e) { e.stopPropagation(); });
-
-          // Popup → inline: when "from" changes in popup, reflect date in inline
-          if (popupFromInp) {
-            popupFromInp.addEventListener('change', function () {
-              dateInput.value = popupFromInp.value ? popupFromInp.value.substring(0, 10) : '';
-              comp._updateFilterIconState(iconBtn, !!col.search());
-            });
-          }
-
-          clearBtn.addEventListener('click', function (e) {
-            e.stopPropagation();
-            dateInput.value = '';
-            popupBody.querySelectorAll('input').forEach(function (inp) { inp.value = ''; });
-            col.search('').draw();
-            comp._updateFilterIconState(iconBtn, false);
-            comp._closeActivePopup();
-          });
-
-          wrapper.appendChild(dateInput);
-        }
-
-        wrapper.appendChild(iconBtn);
-      }
-
-      popup.appendChild(popupBody);
-      document.body.appendChild(popup);
-      comp._applyThemeVarsToPopup(popup);
-
-      popup.addEventListener('mousedown', function (e) { e.stopPropagation(); });
-      popup.addEventListener('click', function (e) { e.stopPropagation(); });
-
-      iconBtn.addEventListener('click', function (e) {
-        e.stopPropagation();
-        e.preventDefault();
-        if (comp._activeFilterPopup === popup) {
-          comp._closeActivePopup();
-        } else {
-          comp._openFilterPopup(popup, iconBtn);
-        }
+      var opSelect = document.createElement('select');
+      opSelect.className = 'dmx-dt-adv-row-op';
+      operators.forEach(function (o) {
+        var opt = document.createElement('option');
+        opt.value = o.value;
+        opt.textContent = o.label;
+        opSelect.appendChild(opt);
       });
 
+      var colField = colSettings.sName || colName;
+
+      var valInput = document.createElement('input');
+      valInput.type = 'text';
+      valInput.className = 'dmx-dt-col-search dmx-dt-inline-search';
+      valInput.placeholder = colTitle;
+
+      function applySearch() {
+        var op = opSelect.value;
+        var val = valInput.value.trim();
+        // Track operator separately; col.search() receives the plain value so
+        // the server receives it in the expected format (same as simple mode).
+        if (!comp._colSearchOps) comp._colSearchOps = {};
+        if (val) {
+          comp._colSearchOps[colField] = op;
+        } else {
+          delete comp._colSearchOps[colField];
+        }
+        if (col.search() !== val) col.search(val).draw();
+      }
+
+      var debounceTimer;
+      valInput.addEventListener('input', function () {
+        clearTimeout(debounceTimer);
+        debounceTimer = setTimeout(applySearch, 300);
+      });
+      opSelect.addEventListener('change', function () {
+        if (valInput.value.trim()) applySearch();
+      });
+
+      valInput.addEventListener('click', function (e) { e.stopPropagation(); });
+      opSelect.addEventListener('click', function (e) { e.stopPropagation(); });
+
+      var wrapper = document.createElement('div');
+      wrapper.className = 'dmx-dt-adv-row-cell';
+      wrapper.appendChild(opSelect);
+      wrapper.appendChild(valInput);
       th.appendChild(wrapper);
       searchRow.appendChild(th);
     });
@@ -2093,12 +2093,39 @@ dmx.Component("datatable", {
           return comp._getActionHtml(row);
         }
       };
+      if (this.props.actions_min_width) actionsCol.minWidth = this.props.actions_min_width;
+      if (this.props.actions_max_width) actionsCol.maxWidth = this.props.actions_max_width;
+      if (this.props.actions_min_width || this.props.actions_max_width) {
+        var _aMinW = this.props.actions_min_width || '';
+        var _aMaxW = this.props.actions_max_width || '';
+        actionsCol.createdCell = function (td) {
+          if (_aMinW) td.style.minWidth = _aMinW;
+          if (_aMaxW) td.style.maxWidth = _aMaxW;
+        };
+      }
 
       if (String(this.props.actions_column_position || 'right').toLowerCase() === 'left') {
         columns.unshift(actionsCol);
       } else {
         columns.push(actionsCol);
       }
+    }
+
+    // Checkbox select column — always prepended as the very first column
+    if (this.props.enable_multi_select && this.props.checkbox_select) {
+      columns.unshift({
+        data: null,
+        name: '__checkbox__',
+        title: '<input type="checkbox" class="dmx-dt-select-all" title="Select all">',
+        orderable: false,
+        searchable: false,
+        className: 'dmx-dt-checkbox-cell dt-nowrap',
+        width: '36px',
+        render: function (data, type, row) {
+          if (type !== 'display') return '';
+          return '<input type="checkbox" class="dmx-dt-row-checkbox">';
+        }
+      });
     }
 
     this._tableEl.className = this.props.table_class || 'table table-striped table-bordered table-hover align-middle';
@@ -2131,6 +2158,25 @@ dmx.Component("datatable", {
         }
       }
     };
+
+    // Merge user language overrides / locale URL (2.1)
+    var _langRaw = (this.props.table_language || '').trim();
+    if (_langRaw) {
+      if (_langRaw.charAt(0) === '{') {
+        try {
+          var _langObj = JSON.parse(_langRaw);
+          // Deep-merge paginate sub-object if present
+          if (_langObj.paginate && typeof _langObj.paginate === 'object') {
+            Object.assign(options.language.paginate, _langObj.paginate);
+            delete _langObj.paginate;
+          }
+          Object.assign(options.language, _langObj);
+        } catch (e) { /* ignore bad JSON */ }
+      } else {
+        // Treat as URL — let DataTables fetch and merge it
+        options.language.url = _langRaw;
+      }
+    }
 
     if (!this.props.enable_global_search && !this.props.enable_column_search) {
       options.searching = false;
@@ -2189,13 +2235,15 @@ dmx.Component("datatable", {
         });
 
         var colSearch = comp._getColumnSearchValues(dtRequest.columns);
+        var colOps = comp._colSearchOps || {};
         comp.set('params', {
           offset: parsed.offset,
           limit: parsed.limit,
           sort: orderColumn.name || '',
           dir: order.dir || 'asc',
           search: '',
-          columnSearch: Object.keys(colSearch).length ? JSON.stringify(colSearch) : ''
+          columnSearch: Object.keys(colSearch).length ? JSON.stringify(colSearch) : '',
+          columnSearchOps: Object.keys(colOps).length ? JSON.stringify(colOps) : ''
         });
 
         comp._updateFiltersData();
@@ -2215,13 +2263,15 @@ dmx.Component("datatable", {
       });
 
       var colSearch = comp._getColumnSearchValues(dtRequest.columns);
+      var colOps = comp._colSearchOps || {};
       comp.set('params', {
         offset: offset,
         limit: limit,
         sort: orderColumn.name || '',
         dir: order.dir || 'asc',
         search: (dtRequest.search || {}).value || '',
-        columnSearch: Object.keys(colSearch).length ? JSON.stringify(colSearch) : ''
+        columnSearch: Object.keys(colSearch).length ? JSON.stringify(colSearch) : '',
+        columnSearchOps: Object.keys(colOps).length ? JSON.stringify(colOps) : ''
       });
 
       comp._updateFiltersData();
@@ -2257,6 +2307,39 @@ dmx.Component("datatable", {
       }
     }
 
+    // Preset sort order on load
+    var _initColSearch = {};
+    if (this.props.default_sort_field) {
+      var _defaultSortField = String(this.props.default_sort_field);
+      var _defaultSortDir = String(this.props.default_sort_dir || 'asc').toLowerCase() === 'desc' ? 'desc' : 'asc';
+      var _defaultSortIdx = -1;
+      options.columns.forEach(function (col, idx) {
+        if (_defaultSortIdx === -1 && (col.name === _defaultSortField || col.data === _defaultSortField)) {
+          _defaultSortIdx = idx;
+        }
+      });
+      if (_defaultSortIdx >= 0) options.order = [[_defaultSortIdx, _defaultSortDir]];
+    }
+
+    // Preset global search on load
+    if (this.props.initial_global_search) {
+      options.search = { search: String(this.props.initial_global_search) };
+    }
+
+    // Preset column searches on load (JSON object keyed by field name)
+    if (this.props.initial_column_search) {
+      try { _initColSearch = JSON.parse(this.props.initial_column_search); } catch (e) { _initColSearch = {}; }
+      if (_initColSearch && typeof _initColSearch === 'object' && Object.keys(_initColSearch).length) {
+        var _searchCols = options.columns.map(function (col) {
+          var name = col.name || col.data;
+          return (name && _initColSearch[name] != null && _initColSearch[name] !== '') ? { search: String(_initColSearch[name]) } : null;
+        });
+        if (_searchCols.some(function (s) { return s !== null; })) {
+          options.searchCols = _searchCols;
+        }
+      }
+    }
+
     // RTL direction support
     if (this.props.enable_rtl) {
       this.$node.setAttribute('dir', 'rtl');
@@ -2264,7 +2347,116 @@ dmx.Component("datatable", {
       this.$node.removeAttribute('dir');
     }
 
+    // FixedColumns support (3.3 Pin Columns Left, 3.8 Pin Actions Column)
+    var _fixLeft = Number(this.props.fixed_columns_left) || 0;
+    var _fixRight = (this.props.fix_actions_column &&
+      this.props.enable_actions &&
+      String(this.props.actions_column_position || 'right').toLowerCase() === 'right') ? 1 : 0;
+    if (_fixLeft > 0 || _fixRight > 0) {
+      this._loadExtension('fixedColumns');
+      options.scrollX = true;
+      options.fixedColumns = {};
+      if (_fixLeft > 0) options.fixedColumns.left = _fixLeft;
+      if (_fixRight > 0) options.fixedColumns.right = _fixRight;
+    }
+
+    // FixedHeader (1.12 Sticky Header)
+    if (this.props.enable_fixed_header) {
+      this._loadExtension('fixedHeader');
+      var _fhOffset = Number(this.props.fixed_header_top_offset) || 0;
+      options.fixedHeader = _fhOffset ? { header: true, headerOffset: _fhOffset } : true;
+    }
+
+    options.scrollX =true;
+
+    // Responsive extension (1.11 Compact/Card View)
+    if (this.props.enable_responsive) {
+      this._loadExtension('responsive');
+      var _detailsType = (this.props.responsive_details_type || 'inline').toLowerCase();
+      options.responsive = { details: { type: _detailsType } };
+    }
+
+    // 1.13 Scroll X / Scroll Y (DataTables native scrolling)
+    // enable_scroll_x activates horizontal scrolling; scroll_y sets a fixed viewport height
+    // (e.g. "400px") for vertical scrolling. These are independent — either or both can be set.
+    if (this.props.enable_scroll_x) {
+      options.scrollX = true;
+    }
+    if (this.props.scroll_y && String(this.props.scroll_y).trim()) {
+      options.scrollY = String(this.props.scroll_y).trim();
+      options.scrollCollapse = true;
+    }
+
+    // 1.10 Animate Rows — attach a drawCallback that applies an entry animation to
+    // each newly-rendered tbody row using a CSS class + keyframe defined in the stylesheet.
+    if (this.props.enable_row_animate) {
+      var _prevDrawCallback = options.drawCallback;
+      options.drawCallback = function (settings) {
+        var tbody = settings.nTBody;
+        if (tbody) {
+          var rows = tbody.querySelectorAll('tr');
+          rows.forEach(function (tr) {
+            tr.classList.remove('dmx-dt-row-entering');
+            // Force reflow so the animation restarts on each draw
+            void tr.offsetWidth; // eslint-disable-line no-void
+            tr.classList.add('dmx-dt-row-entering');
+          });
+        }
+        if (_prevDrawCallback) _prevDrawCallback.call(this, settings);
+      };
+    }
+
+    // 1.1 Dark Mode — toggle CSS class on the dt-container wrapper
+    // Done here (and not in _createTable) so it re-applies after each rebuild.
+    // We defer one tick so the container exists after DataTables wraps the table.
+    var _applyDarkMode = function () {
+      var wrapper = comp.$node.querySelector('div.dt-container');
+      if (!wrapper) wrapper = comp.$node.closest('div.dt-container');
+      if (wrapper) {
+        wrapper.classList.toggle('dmx-dt-dark', !!comp.props.dark_mode);
+        wrapper.classList.toggle('dmx-dt-wrap-header', !!comp.props.wrap_header_text);
+        wrapper.classList.toggle('dmx-dt-animate-rows', !!comp.props.enable_row_animate);
+      }
+    };
+
+    // Column Groups (3.2) — inject multi-row thead before DataTable init
+    if (this.props.column_groups && this.props.column_groups.length > 0) {
+      this._buildGroupedHeader(options.columns, this.props.column_groups);
+    }
+
     this._tableInstance = new DataTable(this._tableEl, options);
+
+    // Apply dark mode / wrap-header / animate-rows CSS classes to the dt-container
+    setTimeout(_applyDarkMode, 0);
+
+    // Add data-dt-order="disable" to the checkbox column TH so DataTables never
+    // attaches a sort click listener to it (belt-and-suspenders alongside orderable:false)
+    if (this.props.enable_multi_select && this.props.checkbox_select) {
+      var _dtCbSettings = this._tableInstance.settings()[0];
+      var _dtCbCols = _dtCbSettings.aoColumns;
+      for (var _ci = 0; _ci < _dtCbCols.length; _ci++) {
+        if (_dtCbCols[_ci].sName === '__checkbox__') {
+          var _cbThApi = this._tableInstance.column(_ci).header();
+          var _cbTh = _cbThApi && _cbThApi[0] ? _cbThApi[0] : (_cbThApi && _cbThApi.nodeType ? _cbThApi : null);
+          if (_cbTh) _cbTh.setAttribute('data-dt-order', 'disable');
+          break;
+        }
+      }
+    }
+
+    // Apply min/max width inline styles to header TH cells (DataTables does not
+    // read back col.minWidth / col.maxWidth from the column config itself)
+    for (var _wi = 0; _wi < options.columns.length; _wi++) {
+      var _wc = options.columns[_wi];
+      if (_wc.minWidth || _wc.maxWidth) {
+        var _thApi = this._tableInstance.column(_wi).header();
+        var _thEl = _thApi && _thApi[0] ? _thApi[0] : (_thApi && _thApi.nodeType ? _thApi : null);
+        if (_thEl) {
+          if (_wc.minWidth) _thEl.style.minWidth = _wc.minWidth;
+          if (_wc.maxWidth) _thEl.style.maxWidth = _wc.maxWidth;
+        }
+      }
+    }
 
     // Add footer row after DataTables init so it aligns with the final column order
     this._setupFooter(options.columns);
@@ -2283,6 +2475,11 @@ dmx.Component("datatable", {
 
     this._setupColumnSearch();
 
+    // Sync column search UI inputs to reflect any initial_column_search values
+    if (Object.keys(_initColSearch).length) {
+      this._syncColumnSearchUI();
+    }
+
     this._setupInlineEditing();
 
     this._rowClickHandler = function (evt) {
@@ -2299,18 +2496,37 @@ dmx.Component("datatable", {
       comp.set('data', Object.assign({}, row));
       comp.set('row', Object.assign({}, row));
 
+      // Never toggle selection when clicking inside the actions column
+      var isActionClick = !!evt.target.closest('.dmx-dt-action-wrap');
+
       // Multi-select handling
-      if (comp.props.enable_multi_select) {
-        var rowIdx = comp._tableInstance.row(tr).index();
-        if (typeof rowIdx !== 'undefined') {
-          if (comp._selectedRowIndices.has(rowIdx)) {
-            comp._selectedRowIndices.delete(rowIdx);
-            tr.classList.remove('dmx-dt-row-selected');
-          } else {
-            comp._selectedRowIndices.add(rowIdx);
-            tr.classList.add('dmx-dt-row-selected');
+      if (comp.props.enable_multi_select && !isActionClick) {
+        var doSelect;
+        if (comp.props.checkbox_select) {
+          // Checkbox-select mode: only toggle when clicking the checkbox input itself
+          doSelect = evt.target.type === 'checkbox' && evt.target.classList.contains('dmx-dt-row-checkbox');
+        } else {
+          doSelect = true;
+        }
+
+        if (doSelect) {
+          var rowIdx = comp._tableInstance.row(tr).index();
+          if (typeof rowIdx !== 'undefined') {
+            if (comp._selectedRowIndices.has(rowIdx)) {
+              comp._selectedRowIndices.delete(rowIdx);
+              tr.classList.remove('dmx-dt-row-selected');
+            } else {
+              comp._selectedRowIndices.add(rowIdx);
+              tr.classList.add('dmx-dt-row-selected');
+            }
+            // Sync the row checkbox visual state
+            if (comp.props.checkbox_select) {
+              var chk = tr.querySelector('.dmx-dt-row-checkbox');
+              if (chk) chk.checked = comp._selectedRowIndices.has(rowIdx);
+            }
+            comp._updateSelectedRows();
+            comp._updateSelectAllState();
           }
-          comp._updateSelectedRows();
         }
       }
 
@@ -2335,6 +2551,35 @@ dmx.Component("datatable", {
 
     this._tableEl.addEventListener('click', this._rowClickHandler);
 
+    // Checkbox-select mode: wire up "select all" header checkbox and draw sync
+    if (this.props.enable_multi_select && this.props.checkbox_select) {
+      this._selectAllHandler = function (e) {
+        if (!e.target.classList.contains('dmx-dt-select-all')) return;
+        var checked = e.target.checked;
+        var rows = comp._tableEl.querySelectorAll('tbody tr');
+        rows.forEach(function (tr) {
+          var idx = comp._tableInstance.row(tr).index();
+          if (typeof idx === 'undefined' || idx === null || idx < 0) return;
+          var cb = tr.querySelector('.dmx-dt-row-checkbox');
+          if (checked) {
+            comp._selectedRowIndices.add(idx);
+            tr.classList.add('dmx-dt-row-selected');
+            if (cb) cb.checked = true;
+          } else {
+            comp._selectedRowIndices.delete(idx);
+            tr.classList.remove('dmx-dt-row-selected');
+            if (cb) cb.checked = false;
+          }
+        });
+        comp._updateSelectedRows();
+      };
+      this._tableEl.addEventListener('click', this._selectAllHandler);
+
+      this._tableInstance.on('draw', function () {
+        comp._syncCheckboxes();
+      });
+    }
+
     this.set('count', parsed.rows.length);
     this.set('state', { tableReady: true, loading: false });
   },
@@ -2356,6 +2601,40 @@ dmx.Component("datatable", {
     });
     this.set('selected_rows', selected);
     this.dispatchEvent('selection_changed');
+  },
+
+  _updateSelectAllState: function () {
+    if (!this._tableEl) return;
+    var comp = this;
+    var selectAllChk = this._tableEl.querySelector('.dmx-dt-select-all');
+    if (!selectAllChk) return;
+    var rows = this._tableEl.querySelectorAll('tbody tr');
+    var total = rows.length;
+    var selected = 0;
+    rows.forEach(function (tr) {
+      var idx = comp._tableInstance ? comp._tableInstance.row(tr).index() : -1;
+      if (comp._selectedRowIndices.has(idx)) selected++;
+    });
+    selectAllChk.checked = total > 0 && selected === total;
+    selectAllChk.indeterminate = selected > 0 && selected < total;
+  },
+
+  _syncCheckboxes: function () {
+    if (!this._tableEl || !this._tableInstance) return;
+    var comp = this;
+    var rows = this._tableEl.querySelectorAll('tbody tr');
+    rows.forEach(function (tr) {
+      var idx = comp._tableInstance.row(tr).index();
+      var chk = tr.querySelector('.dmx-dt-row-checkbox');
+      var isSelected = comp._selectedRowIndices.has(idx);
+      if (chk) chk.checked = isSelected;
+      if (isSelected) {
+        tr.classList.add('dmx-dt-row-selected');
+      } else {
+        tr.classList.remove('dmx-dt-row-selected');
+      }
+    });
+    comp._updateSelectAllState();
   },
 
   // ── Column Reorder ──
@@ -2479,8 +2758,10 @@ dmx.Component("datatable", {
       headerCells = null;
     }
 
-    // Make header cells draggable
-    getHeaderCells().forEach(function (th) {
+    // Make header cells draggable — respect orderable:false (bSortable) from DataTables config
+    var _dtCols = comp._tableInstance ? comp._tableInstance.settings()[0].aoColumns : [];
+    getHeaderCells().forEach(function (th, i) {
+      if (_dtCols[i] && _dtCols[i].bSortable === false) return;
       th.setAttribute('draggable', 'true');
       th.style.cursor = 'grab';
     });
@@ -2619,8 +2900,11 @@ dmx.Component("datatable", {
       comp._saveColumnWidths(widths);
     }
 
-    // Create resize handles on all header cells
-    getHeaderCells().forEach(function (th) {
+    // Create resize handles on all header cells — skip checkbox and actions columns
+    var _dtResizeCols = comp._tableInstance ? comp._tableInstance.settings()[0].aoColumns : [];
+    getHeaderCells().forEach(function (th, i) {
+      var colName = _dtResizeCols[i] && _dtResizeCols[i].sName;
+      if (colName === '__checkbox__' || colName === '__actions__') return;
       createHandle(th);
     });
 
@@ -2731,16 +3015,65 @@ dmx.Component("datatable", {
     return false;
   },
 
+  // Normalizes options input to a plain JS object.
+  // Handles: Wappler reactive proxies (Object.keys extraction), already-evaluated
+  // plain objects, valid JSON strings, JS object literals with unquoted/integer keys,
+  // and Wappler {{...}} bracket-wrapped strings.
+  _normalizeOptions: function (opts) {
+    if (opts == null) return null;
+
+    var result = null;
+
+    if (typeof opts === 'object') {
+      // Primary: Object.keys + direct access — works on reactive proxies where
+      // JSON.stringify may silently produce '{}' due to non-enumerable properties.
+      try {
+        result = {};
+        var keys = Object.keys(opts);
+        for (var i = 0; i < keys.length; i++) {
+          result[keys[i]] = opts[keys[i]];
+        }
+      } catch (e) { result = null; }
+
+      // Fallback: JSON round-trip
+      if (!result || Object.keys(result).length === 0) {
+        try {
+          var j = JSON.stringify(opts);
+          if (j && j !== '{}' && j !== 'null') result = JSON.parse(j);
+          else result = null;
+        } catch (e) { result = null; }
+      }
+    } else if (typeof opts === 'string') {
+      var str = opts.trim();
+      // Strip Wappler bracket template markers: {{expr}} → expr
+      if (str.substring(0, 2) === '{{' && str.slice(-2) === '}}') {
+        str = str.slice(2, -2).trim();
+      }
+      if (!str || str.charAt(0) !== '{') return null;
+      // Try valid JSON first
+      try { result = JSON.parse(str); } catch (e) {}
+      // Handle JS object literal syntax: quote unquoted/integer keys ({1:"L"} → {"1":"L"})
+      if (!result) {
+        try {
+          var norm = str.replace(/([{,]\s*)([a-zA-Z0-9_$]+)\s*:/g, '$1"$2":');
+          result = JSON.parse(norm);
+        } catch (e) {}
+      }
+    }
+
+    if (!result || typeof result !== 'object' || Array.isArray(result)) return null;
+    if (Object.keys(result).length === 0) return null;
+    return result;
+  },
+
   _getStaticSelectorMap: function () {
     var map = {};
+    var self = this;
     var selectors = Array.isArray(this.props.static_selectors) ? this.props.static_selectors : [];
     selectors.forEach(function (s) {
       if (s && s.field && s.options) {
-        try {
-          map[s.field] = typeof s.options === 'string' ? JSON.parse(s.options) : s.options;
-        } catch (e) {
-          map[s.field] = {};
-        }
+        var parsed = self._normalizeOptions(s.options);
+        if (parsed) map[s.field] = parsed;
       }
     });
     return map;
@@ -2748,10 +3081,26 @@ dmx.Component("datatable", {
 
   _getDynamicSelectorMap: function () {
     var map = {};
+    var self = this;
     var selectors = Array.isArray(this.props.dynamic_selectors) ? this.props.dynamic_selectors : [];
     selectors.forEach(function (s) {
       if (s && s.field && s.options_field) {
-        map[s.field] = s.options_field;
+        var optField = s.options_field;
+        if (typeof optField === 'object' && optField !== null) {
+          // Already an evaluated options object — normalize and store directly
+          var parsed = self._normalizeOptions(optField);
+          if (parsed) map[s.field] = parsed;
+        } else if (typeof optField === 'string') {
+          var str = optField.trim();
+          if (str.charAt(0) === '{') {
+            // Looks like an options literal string — parse and store directly
+            var parsed = self._normalizeOptions(str);
+            if (parsed) map[s.field] = parsed;
+          } else {
+            // Plain field name — store as string for row-data lookup
+            map[s.field] = str;
+          }
+        }
       }
     });
     return map;
@@ -2786,10 +3135,21 @@ dmx.Component("datatable", {
         var optionsField = dynamicMap[fieldName];
         col.render = function (data, type, row, meta) {
           if (type === 'display' || type === 'print') {
-            var dynOpts = row[optionsField];
+            // optionsField is either a pre-normalized options object or a row field name string
+            var dynOpts = (typeof optionsField === 'object' && optionsField !== null)
+              ? optionsField
+              : row[optionsField];
             if (dynOpts) {
               try {
-                var parsed = typeof dynOpts === 'string' ? JSON.parse(dynOpts) : dynOpts;
+                var parsed;
+                if (typeof dynOpts === 'string') {
+                  try { parsed = JSON.parse(dynOpts); } catch (e) {
+                    var norm = dynOpts.trim().replace(/([{,]\s*)([a-zA-Z0-9_$]+)\s*:/g, '$1"$2":');
+                    parsed = JSON.parse(norm);
+                  }
+                } else {
+                  parsed = dynOpts;
+                }
                 var key = data != null ? String(data) : '';
                 if (parsed[key] != null) return parsed[key];
               } catch (e) { /* skip */ }
@@ -2877,22 +3237,19 @@ dmx.Component("datatable", {
       // Check static selectors first
       var staticMap = comp._getStaticSelectorMap();
       if (staticMap[fieldName]) {
-        selectorOptions = staticMap[fieldName];
+        // Re-normalize at edit time in case the prop resolved after table build
+        selectorOptions = comp._normalizeOptions(staticMap[fieldName]) || staticMap[fieldName];
       }
 
-      // Check dynamic selectors — value comes from the row data itself
+      // Check dynamic selectors — value is either a pre-normalized options object or a row field name string
       if (!selectorOptions) {
         var dynamicMap = comp._getDynamicSelectorMap();
         if (dynamicMap[fieldName]) {
-          var optionsFieldName = dynamicMap[fieldName];
-          var dynamicOpts = rowData[optionsFieldName];
-          if (dynamicOpts) {
-            try {
-              selectorOptions = typeof dynamicOpts === 'string' ? JSON.parse(dynamicOpts) : dynamicOpts;
-            } catch (e) {
-              selectorOptions = null;
-            }
-          }
+          var optionsFieldValue = dynamicMap[fieldName];
+          var dynamicOpts = (typeof optionsFieldValue === 'object' && optionsFieldValue !== null)
+            ? optionsFieldValue
+            : rowData[optionsFieldValue];
+          selectorOptions = comp._normalizeOptions(dynamicOpts);
         }
       }
     }

@@ -1,20 +1,24 @@
-/* Wappler DataTable component — Paces-inspired theme-adaptive styles */
+/* Wappler DataTable component — AG Grid Quartz-inspired theme */
 
-/* ── Theme-adaptive CSS variables ── */
+/* ── Quartz CSS variables ── */
 div.dt-container {
-  --dmx-dt-border: var(--bs-border-color, rgba(0, 0, 0, 0.125));
-  --dmx-dt-bg-subtle: var(--bs-light-bg-subtle, rgba(0, 0, 0, 0.03));
-  --dmx-dt-text: var(--bs-body-color, inherit);
-  --dmx-dt-text-muted: var(--bs-secondary-color, rgba(0, 0, 0, 0.55));
-  --dmx-dt-accent: var(--bs-primary, rgb(13, 110, 253));
-  --dmx-dt-accent-bg: var(--bs-primary-bg-subtle, rgba(13, 110, 253, 0.1));
-  --dmx-dt-popup-bg: var(--bs-body-bg, #fff);
-  --dmx-dt-popup-shadow: rgba(0, 0, 0, 0.08);
-  --dmx-dt-input-bg: var(--bs-light-bg-subtle, #f8f9fa);
-  --dmx-dt-input-border: var(--bs-border-color-translucent, rgba(0, 0, 0, 0.1));
+  --dmx-dt-border: #e2e8f0;
+  --dmx-dt-bg-subtle: rgba(0, 0, 0, 0.02);
+  --dmx-dt-text: #181d1f;
+  --dmx-dt-text-muted: #6b7280;
+  --dmx-dt-accent: #2196f3;
+  --dmx-dt-accent-bg: rgba(33, 150, 243, 0.1);
+  --dmx-dt-header-bg: #f8fafc;
+  --dmx-dt-body-bg: #ffffff;
+  --dmx-dt-body-bg-alt: #f8fafc;
+  --dmx-dt-row-hover: rgba(33, 150, 243, 0.07);
+  --dmx-dt-popup-bg: #ffffff;
+  --dmx-dt-popup-shadow: rgba(0, 0, 0, 0.12);
+  --dmx-dt-input-bg: #ffffff;
+  --dmx-dt-input-border: #cbd5e1;
 
-  font-family: var(--bs-body-font-family, inherit);
-  font-size: 0.8125rem;
+  font-family: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen-Sans, Ubuntu, Cantarell, "Helvetica Neue", sans-serif;
+  font-size: 0.875rem;
   color: var(--dmx-dt-text);
 }
 
@@ -24,19 +28,125 @@ div.dt-container table.dataTable {
   margin-bottom: 0 !important;
 }
 
+/* Numeric/date columns right-aligned to match the data (DataTables default) */
+/* Override in page CSS if left-align is preferred: thead th.dt-type-numeric { text-align: left; } */
+
 div.dt-container table.dataTable thead th {
-  font-size: 0.75rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--dmx-dt-text-muted);
+  font-size: 0.875rem;
+  font-weight: 700;
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--dmx-dt-text);
+  background-color: var(--dmx-dt-header-bg);
   white-space: nowrap;
-  border-bottom-width: 1px;
+  border-bottom: 2px solid var(--dmx-dt-border);
+  padding: 12px 14px;
+}
+
+/* 1.1 Dark Mode — toggled by adding dmx-dt-dark class to the dt-container wrapper */
+div.dt-container.dmx-dt-dark {
+  --dmx-dt-border: #374151;
+  --dmx-dt-bg-subtle: rgba(255,255,255,0.04);
+  --dmx-dt-text: #e5e7eb;
+  --dmx-dt-text-muted: #9ca3af;
+  --dmx-dt-header-bg: #1f2937;
+  --dmx-dt-body-bg: #111827;
+  --dmx-dt-body-bg-alt: #1a2234;
+  --dmx-dt-row-hover: rgba(33,150,243,0.12);
+  --dmx-dt-popup-bg: #1f2937;
+  --dmx-dt-popup-shadow: rgba(0,0,0,0.4);
+  --dmx-dt-input-bg: #111827;
+  --dmx-dt-input-border: #374151;
+}
+
+/* 1.1 Dark Mode — apply body row, border, and control surfaces */
+div.dt-container.dmx-dt-dark {
+  background-color: var(--dmx-dt-body-bg);
+  color: var(--dmx-dt-text);
+}
+div.dt-container.dmx-dt-dark table.dataTable {
+  border-color: var(--dmx-dt-border);
+  --bs-table-color: var(--dmx-dt-text);
+  --bs-table-bg: var(--dmx-dt-body-bg);
+  --bs-table-striped-bg: var(--dmx-dt-body-bg-alt);
+  --bs-table-striped-color: var(--dmx-dt-text);
+  --bs-table-border-color: var(--dmx-dt-border);
+}
+div.dt-container.dmx-dt-dark table.dataTable thead th {
+  border-color: var(--dmx-dt-border);
+}
+/* cover both dt-even/dt-odd (DataTables 2) and even/odd (legacy) */
+div.dt-container.dmx-dt-dark table.dataTable tbody tr.dt-even td,
+div.dt-container.dmx-dt-dark table.dataTable tbody tr.dt-even th,
+div.dt-container.dmx-dt-dark table.dataTable tbody tr.even td,
+div.dt-container.dmx-dt-dark table.dataTable tbody tr.even th {
+  background-color: var(--dmx-dt-body-bg) !important;
+}
+div.dt-container.dmx-dt-dark table.dataTable tbody tr.dt-odd td,
+div.dt-container.dmx-dt-dark table.dataTable tbody tr.dt-odd th,
+div.dt-container.dmx-dt-dark table.dataTable tbody tr.odd td,
+div.dt-container.dmx-dt-dark table.dataTable tbody tr.odd th {
+  background-color: var(--dmx-dt-body-bg-alt) !important;
+}
+div.dt-container.dmx-dt-dark table.dataTable tbody td,
+div.dt-container.dmx-dt-dark table.dataTable tbody th {
+  color: var(--dmx-dt-text) !important;
+  border-color: var(--dmx-dt-border);
+}
+div.dt-container.dmx-dt-dark div.dt-info,
+div.dt-container.dmx-dt-dark div.dt-length label,
+div.dt-container.dmx-dt-dark div.dt-search label {
+  color: var(--dmx-dt-text-muted);
+}
+div.dt-container.dmx-dt-dark div.dt-length select,
+div.dt-container.dmx-dt-dark div.dt-search input {
+  background-color: var(--dmx-dt-input-bg);
+  border-color: var(--dmx-dt-input-border);
+  color: var(--dmx-dt-text);
+}
+div.dt-container.dmx-dt-dark ul.dt-paging-ul li button {
+  background-color: #1f2937;
+  border-color: var(--dmx-dt-border);
+  color: var(--dmx-dt-text);
+}
+div.dt-container.dmx-dt-dark ul.dt-paging-ul li button.current {
+  background-color: var(--dmx-dt-accent);
+  border-color: var(--dmx-dt-accent);
+  color: #ffffff;
+}
+
+/* 1.2 Numeric/date body cells right-aligned by default */
+div.dt-container table.dataTable tbody td.dt-type-numeric,
+div.dt-container table.dataTable tbody td.dt-type-date {
+  text-align: right;
+}
+
+/* 1.6 Wrap Header Text — toggled by dmx-dt-wrap-header class on dt-container */
+div.dt-container.dmx-dt-wrap-header table.dataTable thead th {
+  white-space: normal;
+}
+
+/* 1.10 Animate Rows — toggled by dmx-dt-animate-rows on dt-container */
+div.dt-container.dmx-dt-animate-rows table.dataTable tbody tr {
+  transition: opacity 0.25s ease, background-color 0.2s ease;
+}
+div.dt-container.dmx-dt-animate-rows table.dataTable tbody tr.dmx-dt-row-entering {
+  opacity: 0;
+  animation: dmxDtRowIn 0.3s ease forwards;
+}
+@keyframes dmxDtRowIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: translateY(0); }
 }
 
 div.dt-container table.dataTable tbody td {
   vertical-align: middle;
-  font-size: 0.8125rem;
+  font-size: 0.875rem;
+  padding: 10px 14px;
+}
+
+div.dt-container table.dataTable tbody tr:hover td {
+  background-color: var(--dmx-dt-row-hover) !important;
 }
 
 /* ── Actions ── */
@@ -63,11 +173,11 @@ th.dt-nowrap {
 .dmx-dt-col-search {
   width: 100%;
   box-sizing: border-box;
-  font-size: 0.8125rem;
+  font-size: 0.875rem;
   padding: 0.35rem 0.65rem;
   background-color: var(--dmx-dt-input-bg);
   border: 1px solid var(--dmx-dt-input-border);
-  border-radius: 0.25rem;
+  border-radius: 4px;
   color: var(--dmx-dt-text);
   transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
 }
@@ -75,19 +185,47 @@ th.dt-nowrap {
 .dmx-dt-col-search:focus {
   background-color: var(--dmx-dt-popup-bg);
   border-color: var(--dmx-dt-accent);
-  box-shadow: 0 0 0 0.2rem var(--dmx-dt-accent-bg);
+  box-shadow: 0 0 0 3px var(--dmx-dt-accent-bg);
   outline: 0;
+}
+
+select.dmx-dt-col-search {
+  padding-right: 2rem;
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='m2 5 6 6 6-6'/%3e%3c/svg%3e");
+  background-repeat: no-repeat;
+  background-position: right 0.55rem center;
+  background-size: 12px 12px;
 }
 
 div.dt-container tfoot th {
   padding: 4px 8px;
 }
 
-/* ── Column search row (Paces-style) ── */
+/* ── Column Groups header row (3.2) ── */
+
+div.dt-container table.dataTable thead tr.dmx-dt-col-groups th {
+  text-align: center;
+  background-color: var(--dmx-dt-accent-bg);
+  color: var(--dmx-dt-accent);
+  font-weight: 700;
+  border-bottom: 2px solid var(--dmx-dt-border);
+  padding: 8px 14px;
+  /* suppress any sort cursor injected by DataTables */
+  cursor: default !important;
+}
+
+div.dt-container table.dataTable thead tr.dmx-dt-col-groups th::after,
+div.dt-container table.dataTable thead tr.dmx-dt-col-groups th::before {
+  display: none !important;
+}
+
+/* ── Column search row (Quartz-style) ── */
 
 .dmx-dt-col-search-row th {
   padding: 6px 10px;
-  background-color: transparent;
+  background-color: var(--dmx-dt-header-bg);
   border-top: none;
   border-bottom: 1px solid var(--dmx-dt-border);
   font-weight: normal;
@@ -97,15 +235,15 @@ div.dt-container tfoot th {
   vertical-align: middle;
 }
 
-/* Paces-style: subtle bg, light border, small size */
+/* Quartz-style: clean inputs */
 .dmx-dt-inline-search {
   width: 100%;
   box-sizing: border-box;
-  font-size: 0.8125rem;
+  font-size: 0.875rem;
   padding: 0.35rem 0.65rem;
   background-color: var(--dmx-dt-input-bg);
   border: 1px solid var(--dmx-dt-input-border);
-  border-radius: 0.25rem;
+  border-radius: 4px;
   color: var(--dmx-dt-text);
   transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
 }
@@ -113,7 +251,7 @@ div.dt-container tfoot th {
 .dmx-dt-inline-search:focus {
   background-color: var(--dmx-dt-popup-bg);
   border-color: var(--dmx-dt-accent);
-  box-shadow: 0 0 0 0.2rem var(--dmx-dt-accent-bg);
+  box-shadow: 0 0 0 3px var(--dmx-dt-accent-bg);
   outline: 0;
 }
 
@@ -130,33 +268,36 @@ div.dt-container tfoot th {
   gap: 4px;
 }
 
-/* ── Advanced row: compact input + icon wrapper ── */
+/* ── Advanced row: operator select stacked above value input (AG Grid style) ── */
 
 .dmx-dt-adv-row-cell {
   display: flex;
-  align-items: center;
-  gap: 4px;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.dmx-dt-adv-row-op {
+  width: 100%;
+  box-sizing: border-box;
+  font-size: 0.75rem;
+  padding: 0.2rem 0.4rem;
+  background-color: var(--dmx-dt-input-bg);
+  border: 1px solid var(--dmx-dt-input-border);
+  border-radius: 4px;
+  color: var(--dmx-dt-text-muted);
+  cursor: pointer;
 }
 
 .dmx-dt-adv-row-cell .dmx-dt-inline-search {
-  flex: 1;
-  min-width: 0;
-}
-
-.dmx-dt-adv-row-cell .dmx-dt-filter-icon {
-  flex-shrink: 0;
-}
-
-.dmx-dt-adv-row-icon-only {
-  justify-content: center;
+  width: 100%;
 }
 
 .dmx-dt-inline-join {
-  font-size: 0.7rem;
+  font-size: 0.75rem;
   font-weight: 600;
   text-align: center;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.03em;
   color: var(--dmx-dt-text-muted);
 }
 
@@ -178,7 +319,7 @@ th .dmx-dt-header-content {
   height: 20px;
   margin-left: 4px;
   padding: 2px;
-  border-radius: 0.25rem;
+  border-radius: 4px;
   cursor: pointer;
   opacity: 0.35;
   vertical-align: middle;
@@ -207,12 +348,13 @@ th .dmx-dt-header-content {
   max-width: 320px;
   background: var(--dmx-dt-popup-bg);
   border: 1px solid var(--dmx-dt-border);
-  border-radius: 0.5rem;
-  box-shadow: 0 0.5rem 1rem var(--dmx-dt-popup-shadow);
-  font-size: 0.8125rem;
+  border-radius: 4px;
+  box-shadow: 0 4px 16px var(--dmx-dt-popup-shadow);
+  font-size: 0.875rem;
   font-weight: normal;
   text-align: left;
   color: var(--dmx-dt-text);
+  overflow: hidden;
 }
 
 .dmx-dt-filter-popup-open {
@@ -223,21 +365,22 @@ th .dmx-dt-header-content {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 8px 12px;
+  padding: 10px 12px;
   border-bottom: 1px solid var(--dmx-dt-border);
-  font-weight: 600;
-  font-size: 0.75rem;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--dmx-dt-text-muted);
+  font-weight: 700;
+  font-size: 0.875rem;
+  text-transform: none;
+  letter-spacing: 0;
+  background-color: var(--dmx-dt-header-bg);
+  color: var(--dmx-dt-text);
 }
 
 .dmx-dt-filter-clear-btn {
   background: none;
   border: 1px solid var(--dmx-dt-border);
-  border-radius: 0.25rem;
+  border-radius: 4px;
   padding: 2px 10px;
-  font-size: 0.7rem;
+  font-size: 0.75rem;
   color: var(--dmx-dt-text-muted);
   cursor: pointer;
   transition: background-color 0.15s, color 0.15s;
@@ -256,20 +399,31 @@ th .dmx-dt-header-content {
 .dmx-dt-filter-popup-body select {
   width: 100%;
   box-sizing: border-box;
-  font-size: 0.8125rem;
+  font-size: 0.875rem;
   padding: 0.35rem 0.65rem;
   background-color: var(--dmx-dt-input-bg);
   border: 1px solid var(--dmx-dt-input-border);
-  border-radius: 0.25rem;
+  border-radius: 4px;
   color: var(--dmx-dt-text);
   transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+}
+
+.dmx-dt-filter-popup-body select {
+  padding-right: 2rem;
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='m2 5 6 6 6-6'/%3e%3c/svg%3e");
+  background-repeat: no-repeat;
+  background-position: right 0.6rem center;
+  background-size: 12px 12px;
+  background-color: var(--dmx-dt-input-bg);
 }
 
 .dmx-dt-filter-popup-body input:focus,
 .dmx-dt-filter-popup-body select:focus {
   background-color: var(--dmx-dt-popup-bg);
   border-color: var(--dmx-dt-accent);
-  box-shadow: 0 0 0 0.2rem var(--dmx-dt-accent-bg);
+  box-shadow: 0 0 0 3px var(--dmx-dt-accent-bg);
   outline: 0;
 }
 
@@ -283,7 +437,7 @@ th .dmx-dt-header-content {
 
 .dmx-dt-text-condition .dmx-dt-text-op,
 .dmx-dt-text-condition .dmx-dt-text-val {
-  font-size: 0.8125rem;
+  font-size: 0.875rem;
 }
 
 .dmx-dt-text-join {
@@ -303,10 +457,10 @@ th .dmx-dt-header-content {
 }
 
 .dmx-dt-join-label {
-  font-size: 0.7rem;
+  font-size: 0.75rem;
   font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.03em;
   color: var(--dmx-dt-text-muted);
   margin-right: 10px;
   cursor: pointer;
@@ -322,7 +476,7 @@ th .dmx-dt-header-content {
 }
 
 .dmx-dt-col-search-date input[type="date"] {
-  font-size: 0.8125rem;
+  font-size: 0.875rem;
   padding: 0.35rem 0.65rem;
 }
 
@@ -335,21 +489,28 @@ th .dmx-dt-header-content {
 }
 
 .dmx-dt-col-search-number select.dmx-dt-num-op {
-  font-size: 0.8125rem;
-  padding: 0.35rem 0.65rem;
+  font-size: 0.875rem;
+  padding: 0.35rem 2rem 0.35rem 0.65rem;
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='m2 5 6 6 6-6'/%3e%3c/svg%3e");
+  background-repeat: no-repeat;
+  background-position: right 0.55rem center;
+  background-size: 12px 12px;
+  background-color: var(--dmx-dt-input-bg);
 }
 
 .dmx-dt-col-search-number input[type="number"] {
-  font-size: 0.8125rem;
+  font-size: 0.875rem;
   padding: 0.35rem 0.65rem;
 }
 
 /* ── Footer row ── */
 
 .dmx-dt-footer-row th {
-  font-weight: 600;
-  font-size: 0.8125rem;
-  background-color: var(--dmx-dt-bg-subtle);
+  font-weight: 700;
+  font-size: 0.875rem;
+  background-color: var(--dmx-dt-header-bg);
   border-top: 2px solid var(--dmx-dt-border);
 }
 
@@ -383,8 +544,8 @@ th[draggable="true"] {
   padding: 6px 14px;
   background: var(--dmx-dt-accent);
   color: #fff;
-  border-radius: 0.25rem;
-  font-size: 0.8rem;
+  border-radius: 4px;
+  font-size: 0.875rem;
   font-weight: 600;
   white-space: nowrap;
   pointer-events: none;
@@ -439,17 +600,20 @@ div.dt-container .dt-buttons .dmx-dt-export-btn.btn {
   display: inline-flex;
   align-items: center;
   gap: 0.35rem;
-  padding: 0.4rem 0.85rem;
-  font-size: 0.8125rem;
+  height: 2.125rem;
+  padding: 0 1rem;
+  font-size: 0.875rem;
   font-weight: 600;
-  line-height: 1.5;
+  line-height: 1;
   border: 1px solid transparent;
-  border-radius: 0.25rem;
+  border-radius: 4px;
   background-color: var(--dmx-dt-accent);
   color: #fff;
   cursor: pointer;
-  transition: background-color 0.15s, border-color 0.15s, box-shadow 0.15s, opacity 0.15s;
+  transition: background-color 0.15s, box-shadow 0.15s, opacity 0.15s;
   white-space: nowrap;
+  letter-spacing: 0;
+  box-sizing: border-box;
 }
 
 div.dt-container .dt-buttons .dmx-dt-export-btn.btn:hover {
@@ -473,10 +637,10 @@ div.dt-container .dt-buttons .dmx-dt-export-btn svg {
 
 /* Export dropdown menu (DataTables collection rendered as .dropdown-menu) */
 div.dropdown-menu.dt-button-collection {
-  background: var(--dmx-dt-popup-bg, var(--bs-dropdown-bg, #fff));
-  border: 1px solid var(--dmx-dt-border, var(--bs-dropdown-border-color, rgba(0,0,0,.15)));
-  border-radius: 0.375rem;
-  box-shadow: 0 0.5rem 1rem var(--dmx-dt-popup-shadow, rgba(0,0,0,.08));
+  background: var(--dmx-dt-popup-bg);
+  border: 1px solid var(--dmx-dt-border);
+  border-radius: 4px;
+  box-shadow: 0 4px 16px var(--dmx-dt-popup-shadow);
   padding: 0.25rem 0;
   min-width: 10rem;
 }
@@ -484,10 +648,10 @@ div.dropdown-menu.dt-button-collection {
 div.dropdown-menu.dt-button-collection .dt-button {
   display: block;
   width: 100%;
-  padding: 0.4rem 1rem;
-  font-size: 0.8125rem;
+  padding: 0.45rem 1rem;
+  font-size: 0.875rem;
   font-weight: 400;
-  color: var(--dmx-dt-text, var(--bs-dropdown-link-color, inherit));
+  color: var(--dmx-dt-text);
   background: none;
   border: none;
   text-align: left;
@@ -497,7 +661,7 @@ div.dropdown-menu.dt-button-collection .dt-button {
 }
 
 div.dropdown-menu.dt-button-collection .dt-button:hover {
-  background-color: var(--dmx-dt-bg-subtle, var(--bs-dropdown-link-hover-bg, rgba(0,0,0,.03)));
+  background-color: var(--dmx-dt-row-hover);
   color: var(--dmx-dt-text);
 }
 
@@ -514,8 +678,9 @@ div.dt-button-background {
 /* ── Page length & labels ── */
 
 div.dt-container .dt-length {
-  font-size: 0.8125rem;
+  font-size: 0.875rem;
   color: var(--dmx-dt-text-muted);
+  padding-top: 1rem;
 }
 
 div.dt-container .dt-length label {
@@ -530,32 +695,41 @@ div.dt-container .dt-length label {
 div.dt-container .dt-length select {
   display: inline-block;
   width: auto;
-  padding: 0.35rem 2rem 0.35rem 0.65rem;
-  font-size: 0.8125rem;
+  height: 2.125rem;
+  padding: 0 2rem 0 0.65rem;
+  font-size: 0.875rem;
   border: 1px solid var(--dmx-dt-input-border);
-  border-radius: 0.25rem;
+  border-radius: 4px;
   background-color: var(--dmx-dt-input-bg);
   color: var(--dmx-dt-text);
   transition: border-color 0.15s, box-shadow 0.15s;
+  box-sizing: border-box;
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='m2 5 6 6 6-6'/%3e%3c/svg%3e");
+  background-repeat: no-repeat;
+  background-position: right 0.55rem center;
+  background-size: 12px 12px;
 }
 
 div.dt-container .dt-length select:focus {
   border-color: var(--dmx-dt-accent);
-  box-shadow: 0 0 0 0.2rem var(--dmx-dt-accent-bg);
+  box-shadow: 0 0 0 3px var(--dmx-dt-accent-bg);
   outline: 0;
 }
 
 /* ── Global search input ── */
 
 div.dt-container .dt-search {
-  font-size: 0.8125rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.875rem;
   color: var(--dmx-dt-text-muted);
+  white-space: nowrap;
 }
 
 div.dt-container .dt-search label {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
   margin: 0;
   font-weight: normal;
   white-space: nowrap;
@@ -564,20 +738,22 @@ div.dt-container .dt-search label {
 div.dt-container .dt-search input {
   display: inline-block;
   width: auto;
-  min-width: 180px;
-  padding: 0.35rem 0.65rem;
-  font-size: 0.8125rem;
+  min-width: 200px;
+  height: 2.125rem;
+  padding: 0 0.75rem;
+  font-size: 0.875rem;
   border: 1px solid var(--dmx-dt-input-border);
-  border-radius: 0.25rem;
+  border-radius: 4px;
   background-color: var(--dmx-dt-input-bg);
   color: var(--dmx-dt-text);
   transition: border-color 0.15s, box-shadow 0.15s;
+  box-sizing: border-box;
 }
 
 div.dt-container .dt-search input:focus {
   background-color: var(--dmx-dt-popup-bg);
   border-color: var(--dmx-dt-accent);
-  box-shadow: 0 0 0 0.2rem var(--dmx-dt-accent-bg);
+  box-shadow: 0 0 0 3px var(--dmx-dt-accent-bg);
   outline: 0;
 }
 
@@ -600,18 +776,18 @@ div.dt-container .dt-paging .pagination .page-item .page-link {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 2.1rem;
-  height: 2.1rem;
-  padding: 0;
-  font-size: 0.8125rem;
+  min-width: 2rem;
+  height: 2rem;
+  padding: 0 0.4rem;
+  font-size: 0.875rem;
   font-weight: 500;
   line-height: 1;
   border: 1px solid var(--dmx-dt-border);
-  border-radius: 50%;
-  color: var(--dmx-dt-text-muted);
+  border-radius: 4px;
+  color: var(--dmx-dt-text);
   background-color: var(--dmx-dt-popup-bg);
   text-decoration: none;
-  transition: background-color 0.15s, border-color 0.15s, color 0.15s, box-shadow 0.15s;
+  transition: background-color 0.15s, border-color 0.15s, color 0.15s;
 }
 
 div.dt-container .dt-paging .pagination .page-item .page-link svg {
@@ -621,8 +797,8 @@ div.dt-container .dt-paging .pagination .page-item .page-link svg {
 }
 
 div.dt-container .dt-paging .pagination .page-item .page-link:hover {
-  background-color: var(--dmx-dt-bg-subtle);
-  border-color: var(--dmx-dt-border);
+  background-color: var(--dmx-dt-row-hover);
+  border-color: var(--dmx-dt-accent);
   color: var(--dmx-dt-accent);
 }
 
@@ -630,7 +806,6 @@ div.dt-container .dt-paging .pagination .page-item.active .page-link {
   background-color: var(--dmx-dt-accent);
   border-color: var(--dmx-dt-accent);
   color: #fff;
-  box-shadow: 0 2px 6px var(--dmx-dt-accent-bg);
 }
 
 div.dt-container .dt-paging .pagination .page-item.disabled .page-link {
@@ -644,7 +819,7 @@ div.dt-container .dt-paging .pagination .page-item.disabled .page-link {
 /* ── Info text ── */
 
 div.dt-container .dt-info {
-  font-size: 0.8125rem;
+  font-size: 0.875rem;
   color: var(--dmx-dt-text-muted);
   padding-top: 0.25rem;
 }
@@ -652,7 +827,7 @@ div.dt-container .dt-info {
 /* ── Processing indicator ── */
 
 div.dt-container .dt-processing {
-  font-size: 0.8125rem;
+  font-size: 0.875rem;
 }
 
 /* ── Responsive ── */
@@ -707,23 +882,44 @@ div.dt-container .dt-processing {
 /* ── Row & Column Highlight ── */
 
 .dmx-dt-row-highlight {
-  background-color: var(--dmx-dt-accent-bg) !important;
+  background-color: var(--dmx-dt-row-hover) !important;
 }
 
 .dmx-dt-col-highlight {
-  background-color: var(--dmx-dt-accent-bg) !important;
+  background-color: var(--dmx-dt-row-hover) !important;
 }
 
 /* ── Multi-Select Row ── */
 
 .dmx-dt-row-selected {
-  background-color: var(--dmx-dt-accent-bg) !important;
+  background-color: rgba(33, 150, 243, 0.18) !important;
   outline: 1px solid var(--dmx-dt-accent);
   outline-offset: -1px;
 }
 
 .dmx-dt-row-selected td {
   background-color: inherit !important;
+}
+
+/* ── Checkbox Select Column ── */
+
+th.dmx-dt-checkbox-cell,
+td.dmx-dt-checkbox-cell {
+  text-align: center !important;
+  vertical-align: middle !important;
+  padding: 0 8px !important;
+  width: 36px;
+  min-width: 36px;
+}
+
+.dmx-dt-select-all,
+.dmx-dt-row-checkbox {
+  display: block;
+  margin: 0 auto;
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+  accent-color: var(--dmx-dt-accent);
 }
 
 /* ── RTL Support ── */
@@ -760,17 +956,17 @@ div.dt-container .dt-processing {
 .dmx-dt-edit-select {
   width: 100%;
   box-sizing: border-box;
-  font-size: 0.8125rem;
+  font-size: 0.875rem;
   padding: 0.25rem 0.5rem;
-  background-color: var(--dmx-dt-popup-bg, #fff);
-  border: 2px solid var(--dmx-dt-accent, rgb(13, 110, 253));
-  border-radius: 0.25rem;
-  color: var(--dmx-dt-text, inherit);
+  background-color: var(--dmx-dt-popup-bg);
+  border: 2px solid var(--dmx-dt-accent);
+  border-radius: 4px;
+  color: var(--dmx-dt-text);
   outline: none;
   transition: box-shadow 0.15s ease-in-out;
 }
 
 .dmx-dt-edit-input:focus,
 .dmx-dt-edit-select:focus {
-  box-shadow: 0 0 0 0.2rem var(--dmx-dt-accent-bg, rgba(13, 110, 253, 0.1));
+  box-shadow: 0 0 0 3px var(--dmx-dt-accent-bg);
 }
